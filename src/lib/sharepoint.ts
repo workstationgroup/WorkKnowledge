@@ -104,7 +104,7 @@ export async function uploadToSharePoint(
   fileName: string,
   mimeType: string,
   lessonFolder: string
-): Promise<{ url: string; webUrl: string }> {
+): Promise<{ url: string; webUrl: string; itemId: string; driveId: string }> {
   const { hostname, sitePath, rootFolder } = await getSharePointConfig();
 
   if (!hostname || !sitePath) {

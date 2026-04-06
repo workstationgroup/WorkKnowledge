@@ -29,12 +29,12 @@ export default async function LessonsPage({
   const groupIdSet = new Set(userGroups.map((m) => m.groupId));
 
   // Build status filter
-  let statusFilter: { status?: string } = {};
-  if (!isAdmin) {
-    statusFilter = { status: "PUBLISHED" };
-  } else if (status && ["PUBLISHED", "DRAFT", "CANCELLED"].includes(status)) {
-    statusFilter = { status };
-  }
+  type LessonStatus = "PUBLISHED" | "DRAFT" | "CANCELLED";
+  const statusFilter: { status?: LessonStatus } =
+    !isAdmin ? { status: "PUBLISHED" }
+    : status && (["PUBLISHED", "DRAFT", "CANCELLED"] as string[]).includes(status)
+    ? { status: status as LessonStatus }
+    : {};
 
   // Fetch all lessons matching hard filters (category + status)
   const allLessons = await prisma.lesson.findMany({
