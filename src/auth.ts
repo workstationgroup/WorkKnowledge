@@ -16,9 +16,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     MicrosoftEntraID({
       clientId: process.env.AZURE_CLIENT_ID!,
       clientSecret: process.env.AZURE_CLIENT_SECRET!,
-      // Use tenant-specific issuer so the OIDC discovery doc has the real issuer URL
-      // (no {tenantid} placeholder), making iss validation pass.
-      issuer: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`,
+      // No issuer override — defaults to /common/ which is required by the provider's
+      // internal logic: it replaces "common" with the actual tid from the token to
+      // re-fetch the tenant-specific OIDC discovery doc for issuer validation.
     }),
   ],
 
