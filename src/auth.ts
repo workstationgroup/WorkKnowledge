@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
+import { customFetch } from "@auth/core";
 import { prisma } from "@/lib/prisma";
 import { waitUntil } from "@vercel/functions";
 
@@ -16,13 +17,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   providers: [
-    MicrosoftEntraID({
-      clientId: process.env.AZURE_CLIENT_ID!,
-      clientSecret: process.env.AZURE_CLIENT_SECRET!,
-      // No issuer override — defaults to /common/ which is required by the provider's
-      // internal logic: it replaces "common" with the actual tid from the token to
-      // re-fetch the tenant-specific OIDC discovery doc for issuer validation.
-    }),
+    // Use tenant-specific endpoint (single-tenant apps require this per AADSTS50194).
+    // customFetch patches the OIDC discovery response to work around the provider's UUID
+    // regex bug: /(\w+)/ only captures up to the first "-" in a UUID tenant ID, so the
+    // callback's replace(partialUuid, fullTid) doubles the UUID. Fix: return "common" in
+    // the discovery issuer so the callback's replace("common", tid) produces a valid URL.
+    (() => {
+      const cfg = {
+        clientId: process.env.AZURE_CLIENT_ID!,
+        clientSecret: process.env.AZURE_CLIENT_SECRET!,
+        issuer: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`,
+      };
+      const provider = MicrosoftEntraID(cfg);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (provider as any)[customFetch] = async (...args: Parameters<typeof fetch>) => {
+        const url = new URL(args[0] instanceof Request ? args[0].url : (args[0] as string));
+        if (url.pathname.endsWith(".well-known/openid-configuration")) {
+          const response = await fetch(...args);
+          const json = await response.clone().json() as Record<string, unknown>;
+          const issuer = (json.issuer as string).replace(process.env.AZURE_TENANT_ID!, "common");
+          return Response.json({ ...json, issuer });
+        }
+        return fetch(...args);
+      };
+      return provider;
+    })(),
   ],
 
   callbacks: {
