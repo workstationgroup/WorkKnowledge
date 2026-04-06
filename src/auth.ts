@@ -7,12 +7,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   debug: true,
   logger: {
     error(error: unknown) {
-      if (error instanceof Error) {
-        const e = error as Error & { cause?: unknown };
-        console.error("[auth][full-error]", error.name + ":", error.message, "| cause:", JSON.stringify(e.cause ?? "none"));
-      } else {
-        console.error("[auth][full-error]", JSON.stringify(error));
-      }
+      const msg = error instanceof Error
+        ? `${error.name}: ${error.message} | cause: ${JSON.stringify((error as Error & { cause?: unknown }).cause ?? "none")}`
+        : JSON.stringify(error);
+      console.error("[auth][full-error]", msg);
+      // Write to DB so we can read it even if logs are truncated
+      prisma.setting.upsert({
+        where: { key: "auth_last_error" },
+        update: { value: msg },
+        create: { key: "auth_last_error", value: msg },
+      }).catch(() => {});
     },
     debug(message: string, metadata?: unknown) {
       console.log("[auth][debug]", message, JSON.stringify(metadata ?? ""));
