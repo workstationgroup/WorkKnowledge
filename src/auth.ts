@@ -2,33 +2,22 @@ import NextAuth from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { customFetch } from "@auth/core";
 import { prisma } from "@/lib/prisma";
-import { waitUntil } from "@vercel/functions";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  logger: {
-    error(error: unknown) {
-      const msg = error instanceof Error
-        ? `${error.name}: ${error.message} | cause: ${JSON.stringify((error as Error & { cause?: unknown }).cause ?? "none")}`
-        : JSON.stringify(error);
-      waitUntil(
-        prisma.setting.upsert({ where: { key: "auth_last_error" }, update: { value: msg }, create: { key: "auth_last_error", value: msg } }).catch(() => {})
-      );
-    },
-  },
   providers: [
-    // Use tenant-specific endpoint (single-tenant apps require this per AADSTS50194).
-    // customFetch patches the OIDC discovery response to work around the provider's UUID
-    // regex bug: /(\w+)/ only captures up to the first "-" in a UUID tenant ID, so the
-    // callback's replace(partialUuid, fullTid) doubles the UUID. Fix: return "common" in
-    // the discovery issuer so the callback's replace("common", tid) produces a valid URL.
+    // Use tenant-specific endpoint (single-tenant apps require this, per AADSTS50194).
+    // customFetch patches the OIDC discovery issuer to work around a bug in the provider:
+    // the callback code uses /(\w+)/ to capture the tenant segment, which stops at "-" in
+    // a UUID, then replaces the partial match causing a doubled UUID in the re-discovery URL.
+    // Fix: return "common" in the discovery issuer so the callback's replace("common", tid)
+    // produces the correct tenant-specific URL.
     (() => {
-      const cfg = {
+      const provider = MicrosoftEntraID({
         clientId: process.env.AZURE_CLIENT_ID!,
         clientSecret: process.env.AZURE_CLIENT_SECRET!,
         issuer: `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`,
-      };
-      const provider = MicrosoftEntraID(cfg);
+      });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (provider as any)[customFetch] = async (...args: Parameters<typeof fetch>) => {
         const url = new URL(args[0] instanceof Request ? args[0].url : (args[0] as string));
