@@ -8,7 +8,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     MicrosoftEntraID({
       clientId: process.env.AZURE_CLIENT_ID!,
       clientSecret: process.env.AZURE_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_TENANT_ID,
+      // No custom issuer — defaults to /common/ which avoids UUID regex bug in the provider.
+      // Tenant restriction is enforced in the signIn callback below.
     }),
   ],
 
