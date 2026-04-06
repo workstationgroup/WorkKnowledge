@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { prisma } from "@/lib/prisma";
+import { waitUntil } from "@vercel/functions";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -9,7 +10,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const msg = error instanceof Error
         ? `${error.name}: ${error.message} | cause: ${JSON.stringify((error as Error & { cause?: unknown }).cause ?? "none")}`
         : JSON.stringify(error);
-      prisma.setting.upsert({ where: { key: "auth_last_error" }, update: { value: msg }, create: { key: "auth_last_error", value: msg } }).catch(() => {});
+      waitUntil(
+        prisma.setting.upsert({ where: { key: "auth_last_error" }, update: { value: msg }, create: { key: "auth_last_error", value: msg } }).catch(() => {})
+      );
     },
   },
   providers: [
