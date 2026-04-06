@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  logger: {
+    error(code, ...message) {
+      console.error("[auth][full-error]", code, JSON.stringify(message, null, 2));
+    },
+  },
   providers: [
     MicrosoftEntraID({
       clientId: process.env.AZURE_CLIENT_ID!,
