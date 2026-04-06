@@ -1,14 +1,14 @@
 import { handlers } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { type NextRequest } from "next/server";
 
-const originalGET = handlers.GET;
+const { GET: _GET, POST } = handlers;
 
-async function GET(req: Request, ctx: { params: Promise<{ nextauth: string[] }> }) {
+async function GET(req: NextRequest) {
   const url = new URL(req.url);
-  const params = await ctx.params;
-  // Log callback URL to DB so we can inspect what Azure actually sent back
-  if (params.nextauth?.includes("callback")) {
-    const entry = `path=${url.pathname} | search=${url.search}`;
+  if (url.pathname.includes("/callback/")) {
+    // Log the full callback URL so we can inspect what Azure actually sent back
+    const entry = `${url.pathname}${url.search}`;
     prisma.setting
       .upsert({
         where: { key: "auth_last_callback_url" },
@@ -17,8 +17,7 @@ async function GET(req: Request, ctx: { params: Promise<{ nextauth: string[] }> 
       })
       .catch(() => {});
   }
-  return originalGET(req, ctx);
+  return _GET(req);
 }
 
-export { GET };
-export const POST = handlers.POST;
+export { GET, POST };
