@@ -4,13 +4,18 @@ import { prisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  debug: true,
   logger: {
     error(error: unknown) {
       if (error instanceof Error) {
-        console.error("[auth][full-error]", error.name + ":", error.message, "| cause:", (error as NodeJS.ErrnoException).cause ?? "none", "| stack:", error.stack);
+        const e = error as Error & { cause?: unknown };
+        console.error("[auth][full-error]", error.name + ":", error.message, "| cause:", JSON.stringify(e.cause ?? "none"));
       } else {
         console.error("[auth][full-error]", JSON.stringify(error));
       }
+    },
+    debug(message: string, metadata?: unknown) {
+      console.log("[auth][debug]", message, JSON.stringify(metadata ?? ""));
     },
   },
   providers: [
