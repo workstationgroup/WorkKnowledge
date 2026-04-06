@@ -3,6 +3,7 @@ import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { prisma } from "@/lib/prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     MicrosoftEntraID({
       clientId: process.env.AZURE_CLIENT_ID!,
