@@ -1,11 +1,23 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
+
+// Enter inserts a <br> (hard break) instead of splitting into a new <p>.
+// Prevents the extra vertical space between paragraphs — users asked for tight newlines.
+const HardBreakOnEnter = Extension.create({
+  name: "hardBreakOnEnter",
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => this.editor.commands.setHardBreak(),
+    };
+  },
+});
 import {
   Bold, Italic, List, ListOrdered, Heading2, Heading3,
   Minus, Undo, Redo, Link as LinkIcon, PlayCircle,
@@ -30,6 +42,7 @@ export function RichEditor({ value, onChange, placeholder, lessonId }: RichEdito
     immediatelyRender: false,
     extensions: [
       StarterKit,
+      HardBreakOnEnter,
       Placeholder.configure({ placeholder: placeholder ?? "Start writing..." }),
       Link.configure({ openOnClick: false }),
       Image.configure({ inline: false, allowBase64: false }),
