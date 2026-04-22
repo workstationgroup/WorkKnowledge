@@ -22,10 +22,11 @@ function ImageLightbox({ src, caption, onClose }: ImageLightboxProps) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", h);
-      document.body.style.overflow = "";
+      document.body.style.overflow = prevOverflow;
     };
   }, [onClose]);
 
@@ -52,12 +53,13 @@ function ImageLightbox({ src, caption, onClose }: ImageLightboxProps) {
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm animate-in fade-in-0"
+      style={{ position: "fixed", inset: 0, zIndex: 9999 }}
+      className="flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm"
     >
       <button
         onClick={onClose}
         aria-label="Close"
-        className="absolute top-4 right-4 text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+        className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
       >
         <X className="w-6 h-6" />
       </button>
@@ -81,7 +83,7 @@ function ImageLightbox({ src, caption, onClose }: ImageLightboxProps) {
           className="max-w-[95vw] max-h-[85vh] object-contain rounded-lg"
         />
         {caption && (
-          <p className="text-center text-sm text-white/70 mt-3 max-w-[95vw] mx-auto px-4">
+          <p className="text-center text-sm text-white/80 mt-3 max-w-[95vw] mx-auto px-4">
             {caption}
           </p>
         )}
@@ -95,33 +97,25 @@ function ImageLightbox({ src, caption, onClose }: ImageLightboxProps) {
 
 /**
  * Wraps children and turns every <img> click into a lightbox open.
- * Put it around the parts of a page where users read content with images.
  * Individual images can opt out with `data-no-zoom="true"`.
  */
 export function LightboxRoot({ children }: { children: React.ReactNode }) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState<string | null>(null);
   const [caption, setCaption] = useState<string>("");
 
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const onClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName !== "IMG") return;
-      if (target.dataset.noZoom === "true") return;
-      const img = target as HTMLImageElement;
-      if (!img.src) return;
-      e.preventDefault();
-      setSrc(img.src);
-      setCaption(img.alt ?? "");
-    };
-    root.addEventListener("click", onClick);
-    return () => root.removeEventListener("click", onClick);
-  }, []);
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName !== "IMG") return;
+    if (target.dataset.noZoom === "true") return;
+    const img = target as HTMLImageElement;
+    if (!img.src) return;
+    e.preventDefault();
+    setSrc(img.src);
+    setCaption(img.alt ?? "");
+  };
 
   return (
-    <div ref={rootRef} className="[&_img]:cursor-zoom-in">
+    <div onClick={handleClick} className="[&_img]:cursor-zoom-in">
       {children}
       {src && <ImageLightbox src={src} caption={caption} onClose={() => setSrc(null)} />}
     </div>
