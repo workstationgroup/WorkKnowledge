@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { recordChange } from "@/lib/changelog";
+import { canUserManageLesson } from "@/lib/permissions";
 
 type BlockInput = {
   type: string;
@@ -29,13 +30,14 @@ function pickBlockFields(b: BlockInput, i: number) {
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const before = await prisma.lessonTopic.findUnique({ where: { id } });
+  if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await canUserManageLesson(user, before.lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
     const { title, mustComplete, blocks } = await req.json();
-
-    const before = await prisma.lessonTopic.findUnique({ where: { id } });
-    if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     await prisma.topicBlock.deleteMany({ where: { topicId: id } });
 
@@ -68,11 +70,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const topic = await prisma.lessonTopic.findUnique({ where: { id } });
+  if (!topic) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await canUserManageLesson(user, topic.lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const topic = await prisma.lessonTopic.findUnique({ where: { id } });
-    if (!topic) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     await prisma.lessonTopic.delete({ where: { id } });
     await recordChange(topic.lessonId, user.id, user.name, `Deleted topic: "${topic.title}"`);
