@@ -1,27 +1,12 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
-import { Extension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
-
-// Swap the default paragraph-break behavior across all block types (paragraphs AND list items):
-//   Enter        → <br> (tight)
-//   Shift+Enter  → split block (new paragraph, or — inside a list — new bullet)
-// Priority 1000 beats ListItem's default Enter handler so behavior is consistent everywhere.
-const HardBreakOnEnter = Extension.create({
-  name: "hardBreakOnEnter",
-  priority: 1000,
-  addKeyboardShortcuts() {
-    return {
-      Enter: () => this.editor.commands.setHardBreak(),
-      "Shift-Enter": () => this.editor.commands.splitBlock(),
-    };
-  },
-});
+import { splitBlock } from "prosemirror-commands";
 import {
   Bold, Italic, List, ListOrdered, Heading2, Heading3,
   Minus, Undo, Redo, Link as LinkIcon, PlayCircle,
@@ -46,7 +31,6 @@ export function RichEditor({ value, onChange, placeholder, lessonId }: RichEdito
     immediatelyRender: false,
     extensions: [
       StarterKit,
-      HardBreakOnEnter,
       Placeholder.configure({ placeholder: placeholder ?? "Start writing..." }),
       Link.configure({ openOnClick: false }),
       Image.configure({ inline: false, allowBase64: false }),
@@ -56,6 +40,22 @@ export function RichEditor({ value, onChange, placeholder, lessonId }: RichEdito
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
       attributes: { class: "prose prose-gray max-w-none focus:outline-none min-h-[300px] px-4 py-3" },
+      // Intercept Enter/Shift+Enter before any extension gets it.
+      // Enter → <br> everywhere (including inside list items).
+      // Shift+Enter → split the current block (new paragraph, or new bullet in lists).
+      handleKeyDown(view, event) {
+        if (event.key !== "Enter" || event.isComposing) return false;
+        const { state, dispatch } = view;
+        if (event.shiftKey) {
+          // Shift+Enter → split block (new paragraph, or split list item inside a bullet).
+          return splitBlock(state, dispatch);
+        }
+        // Plain Enter → hard break everywhere (including inside list items).
+        const hardBreak = state.schema.nodes.hardBreak;
+        if (!hardBreak) return false;
+        dispatch(state.tr.replaceSelectionWith(hardBreak.create(), false).scrollIntoView());
+        return true;
+      },
     },
   });
 
