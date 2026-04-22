@@ -40,7 +40,7 @@ export function RichEditor({ value, onChange, placeholder, lessonId }: RichEdito
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
     editorProps: {
-      attributes: { class: "prose prose-gray max-w-none focus:outline-none min-h-[300px] px-4 py-3" },
+      attributes: { class: "prose prose-gray max-w-none focus:outline-none min-h-[300px] px-4 py-3 prose-li:my-0 prose-ul:my-2 prose-ol:my-2 prose-p:my-2" },
       // Intercept Enter/Shift+Enter before any extension gets it.
       // Enter → <br> everywhere (including inside list items).
       // Shift+Enter → split the current block (new paragraph, or new bullet in lists).

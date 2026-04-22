@@ -176,7 +176,7 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
       <LightboxRoot>
         {lesson.content && (
           <div
-            className="prose prose-gray max-w-none prose-headings:font-semibold prose-a:text-indigo-600"
+            className="prose prose-gray max-w-none prose-headings:font-semibold prose-a:text-indigo-600 prose-li:my-0 prose-ul:my-2 prose-ol:my-2 prose-p:my-2"
             dangerouslySetInnerHTML={{ __html: lesson.content }}
           />
         )}
