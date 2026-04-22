@@ -12,7 +12,6 @@ import { RelatedLessonsEditor, RelatedLessonsEditorHandle } from "@/components/r
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Save, Loader2, Eye } from "lucide-react";
@@ -197,7 +196,12 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
           </div>
           <div className="space-y-1.5">
             <Label>Summary (optional)</Label>
-            <Textarea placeholder="Brief description shown in lesson list" value={summary} onChange={(e) => setSummary(e.target.value)} rows={2} />
+            <RichEditor
+              value={summary}
+              onChange={setSummary}
+              placeholder="Brief description shown in lesson list"
+              lessonId={initial?.id}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Introduction / Overview</Label>
