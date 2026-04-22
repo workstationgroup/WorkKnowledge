@@ -35,8 +35,8 @@ export function LessonVersionHistory({ lessonId, onRestored }: LessonVersionHist
 
   useEffect(() => {
     fetch(`/api/lessons/${lessonId}/versions`)
-      .then((r) => r.json())
-      .then((data) => { setVersions(data); setLoading(false); })
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { setVersions(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [lessonId]);
 
