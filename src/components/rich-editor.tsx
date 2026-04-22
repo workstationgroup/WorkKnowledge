@@ -183,6 +183,13 @@ export function RichEditor({ value, onChange, placeholder, lessonId }: RichEdito
       </div>
 
       <EditorContent editor={editor} />
+
+      {/* Keyboard hint */}
+      <div className="px-4 py-1.5 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-400">
+        <kbd className="px-1 py-0.5 rounded bg-white border border-gray-200 font-mono text-[10px]">Enter</kbd> line break
+        <span className="mx-2">·</span>
+        <kbd className="px-1 py-0.5 rounded bg-white border border-gray-200 font-mono text-[10px]">Shift</kbd>+<kbd className="px-1 py-0.5 rounded bg-white border border-gray-200 font-mono text-[10px]">Enter</kbd> new paragraph
+      </div>
     </div>
   );
 }
