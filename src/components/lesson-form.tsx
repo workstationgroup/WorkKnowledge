@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RichEditor } from "@/components/rich-editor";
 import { TopicEditor } from "@/components/topic-editor";
@@ -157,6 +157,19 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
     if (res.ok && res.slug) window.open(`/lessons/${res.slug}`, "_blank", "noopener,noreferrer");
   };
 
+  // Ctrl/Cmd+S → save, blocking the browser's Save Page dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (!saving) save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saving, title, slug, content, summary, categoryId, status, readMinutes, selectedGroups]);
+
   return (
     <div className="pb-8 max-w-4xl mx-auto">
       {/* Sticky header — top-14 on mobile to sit below the fixed nav bar */}
@@ -178,7 +191,7 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
               </Button>
             </>
           )}
-          <Button onClick={save} disabled={saving} className="gap-2">
+          <Button onClick={save} disabled={saving} className="gap-2" title="Save (Ctrl+S / ⌘S)">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {saving ? "Saving..." : "Save"}
           </Button>
