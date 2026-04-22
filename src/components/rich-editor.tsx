@@ -8,13 +8,13 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
 
-// Enter inserts a <br> (hard break) instead of splitting into a new <p>.
-// Prevents the extra vertical space between paragraphs — users asked for tight newlines.
+// Swap the default paragraph-break behavior: Enter → <br> (tight), Shift+Enter → new paragraph.
 const HardBreakOnEnter = Extension.create({
   name: "hardBreakOnEnter",
   addKeyboardShortcuts() {
     return {
       Enter: () => this.editor.commands.setHardBreak(),
+      "Shift-Enter": () => this.editor.commands.splitBlock(),
     };
   },
 });
