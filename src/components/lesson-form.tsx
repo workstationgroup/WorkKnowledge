@@ -8,6 +8,7 @@ import { AttachmentsEditor, AttachmentsEditorHandle } from "@/components/attachm
 import { LessonChangelog } from "@/components/lesson-changelog";
 import { LessonVersionHistory } from "@/components/lesson-version-history";
 import { QuizEditor, QuizEditorHandle } from "@/components/quiz-editor";
+import { RelatedLessonsEditor, RelatedLessonsEditorHandle } from "@/components/related-lessons-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,13 +17,63 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Save, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const NEW_LESSON_TOUR: PageTourStep[] = [
+  {
+    title: "Creating a Lesson",
+    description: "Fill in the lesson details here. Start with a title and category, then save — you can add topics, attachments, and a quiz afterwards.",
+    placement: "center",
+  },
+  {
+    target: "lesson-main-fields",
+    title: "Lesson Content",
+    description: "Enter the lesson title, a short summary, and an introduction or overview. The title auto-generates the URL slug.",
+    placement: "right",
+  },
+  {
+    target: "lesson-side-fields",
+    title: "Lesson Settings",
+    description: "Set the category, status (Draft → Published when ready), estimated read time, and which groups can access this lesson.",
+    placement: "left",
+  },
+];
+
+const EDIT_LESSON_TOUR: PageTourStep[] = [
+  {
+    title: "Editing a Lesson",
+    description: "Update the lesson details, then scroll down to manage topics, attachments, quiz, and version history.",
+    placement: "center",
+  },
+  {
+    target: "lesson-main-fields",
+    title: "Lesson Content",
+    description: "Update the title, summary, and introduction text here. Changes are saved when you click the Save button.",
+    placement: "bottom",
+  },
+  {
+    target: "lesson-topics-section",
+    title: "Topics",
+    description: "Break the lesson into multiple topics. Each topic can contain rich text, images, videos, PDFs, and Office files.",
+    placement: "bottom",
+  },
+  {
+    target: "lesson-quiz-section",
+    title: "Quiz",
+    description: "Add a quiz with multiple-choice questions. Employees must pass the quiz to mark the lesson complete.",
+    placement: "bottom",
+  },
+];
 
 interface Category { id: string; name: string; color: string }
 interface Group { id: string; name: string; color: string }
+interface LessonOption { id: string; title: string; status: string; category: { name: string; color: string } }
 
 interface LessonFormProps {
   categories: Category[];
   groups: Group[];
+  allLessons?: LessonOption[];
+  requireGroup?: boolean; // managers must assign at least one group
   initial?: {
     id: string;
     title: string;
@@ -40,7 +91,7 @@ function toSlug(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
 }
 
-export function LessonForm({ categories, groups, initial }: LessonFormProps) {
+export function LessonForm({ categories, groups, allLessons = [], requireGroup = false, initial }: LessonFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
@@ -54,6 +105,7 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
 
   const attachmentsRef = useRef<AttachmentsEditorHandle>(null);
   const quizRef = useRef<QuizEditorHandle>(null);
+  const relatedRef = useRef<RelatedLessonsEditorHandle>(null);
 
   const handleTitleChange = (val: string) => {
     setTitle(val);
@@ -65,6 +117,7 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
 
   const save = async () => {
     if (!title.trim() || !categoryId) { toast.error("Title and category are required"); return; }
+    if (requireGroup && selectedGroups.size === 0) { toast.error("You must assign at least one group"); return; }
     setSaving(true);
     try {
       const method = initial ? "PUT" : "POST";
@@ -74,23 +127,22 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, slug, content, summary, categoryId, status, readMinutes, groupIds: [...selectedGroups] }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Failed");
-      }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error(data.error ?? `Save failed (${res.status})`);
 
       // Also save attachments and quiz if on the edit page
       if (initial) {
         await Promise.all([
           attachmentsRef.current?.save(),
           quizRef.current?.save(),
+          relatedRef.current?.save(),
         ]);
       }
 
       toast.success(initial ? "Lesson saved" : "Lesson created");
       if (!initial) {
-        router.push("/admin/lessons");
-        router.refresh();
+        router.push(`/admin/lessons/${data.id}/edit`);
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Something went wrong");
@@ -114,7 +166,7 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main */}
-        <div className="col-span-2 space-y-4">
+        <div data-tour="lesson-main-fields" className="col-span-2 space-y-4">
           <div className="space-y-1.5">
             <Label>Title</Label>
             <Input placeholder="Lesson title" value={title} onChange={(e) => handleTitleChange(e.target.value)} className="text-lg" />
@@ -130,7 +182,7 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-4">
+        <div data-tour="lesson-side-fields" className="space-y-4">
           <Card>
             <CardContent className="pt-4 space-y-4">
               <div className="space-y-1.5">
@@ -172,7 +224,11 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
           <Card>
             <CardContent className="pt-4">
               <Label className="mb-2 block">Access Groups</Label>
-              <p className="text-xs text-gray-400 mb-3">Leave empty = visible to all employees</p>
+              <p className="text-xs text-gray-400 mb-3">
+                {requireGroup
+                  ? "Assign at least one group — you can only pick groups you belong to."
+                  : "Leave empty = visible to all employees"}
+              </p>
               <div className="flex flex-wrap gap-2">
                 {groups.map((g) => {
                   const active = selectedGroups.has(g.id);
@@ -198,7 +254,7 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
           <Separator className="my-8" />
           <div className="space-y-8">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">Topics</h2>
+              <h2 data-tour="lesson-topics-section" className="text-lg font-semibold text-gray-900 mb-1">Topics</h2>
               <p className="text-sm text-gray-500 mb-4">Break the lesson into topics. Each topic can contain text, images, videos, PDFs, PPT, or Excel files.</p>
               <TopicEditor lessonId={initial.id} lessonTitle={initial.title} />
             </div>
@@ -210,9 +266,15 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">Quiz</h2>
+              <h2 data-tour="lesson-quiz-section" className="text-lg font-semibold text-gray-900 mb-1">Quiz</h2>
               <p className="text-sm text-gray-500 mb-4">Set a quiz employees must pass at the end of this lesson. Each question has 5 choices.</p>
               <QuizEditor ref={quizRef} lessonId={initial.id} />
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">Related Lessons</h2>
+              <p className="text-sm text-gray-500 mb-4">Suggest other lessons employees should take alongside or after this one.</p>
+              <RelatedLessonsEditor ref={relatedRef} lessonId={initial.id} allLessons={allLessons} />
             </div>
 
             <div>
@@ -231,9 +293,13 @@ export function LessonForm({ categories, groups, initial }: LessonFormProps) {
       )}
 
       {!initial && (
-        <p className="mt-6 text-sm text-gray-400 text-center">Save the lesson first, then add topics and attachments.</p>
+        <p className="mt-6 text-sm text-gray-400 text-center">Save to continue — topics, attachments, quiz, and related lessons are available after the first save.</p>
       )}
       </div>
+      <PageTour
+        tourKey={initial ? "wso_page_lesson_edit_v1" : "wso_page_lesson_new_v1"}
+        steps={initial ? EDIT_LESSON_TOUR : NEW_LESSON_TOUR}
+      />
     </div>
   );
 }
