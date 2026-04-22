@@ -8,9 +8,13 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
 
-// Swap the default paragraph-break behavior: Enter → <br> (tight), Shift+Enter → new paragraph.
+// Swap the default paragraph-break behavior across all block types (paragraphs AND list items):
+//   Enter        → <br> (tight)
+//   Shift+Enter  → split block (new paragraph, or — inside a list — new bullet)
+// Priority 1000 beats ListItem's default Enter handler so behavior is consistent everywhere.
 const HardBreakOnEnter = Extension.create({
   name: "hardBreakOnEnter",
+  priority: 1000,
   addKeyboardShortcuts() {
     return {
       Enter: () => this.editor.commands.setHardBreak(),
