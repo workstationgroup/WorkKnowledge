@@ -83,18 +83,15 @@ export function RichEditor({ value, onChange, placeholder, lessonFolder }: RichE
   const uploadImage = async (file: File) => {
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/upload-image", { method: "POST", body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Upload failed" }));
-        alert(err.error ?? "Upload failed");
-        return;
-      }
-      const data = await res.json();
-      editor.chain().focus().setImage({ src: data.url, alt: file.name }).run();
-    } catch {
-      alert("Image upload failed");
+      const { upload } = await import("@vercel/blob/client");
+      const blob = await upload(`editor/${file.name}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload-image",
+        contentType: file.type,
+      });
+      editor.chain().focus().setImage({ src: blob.url, alt: file.name }).run();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Image upload failed");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
