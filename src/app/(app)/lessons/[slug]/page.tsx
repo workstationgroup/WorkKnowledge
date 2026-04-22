@@ -151,7 +151,12 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
           {lesson.status === "DRAFT" && <Badge variant="outline" className="text-amber-500 border-amber-200">Draft</Badge>}
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{lesson.title}</h1>
-        {lesson.summary && <p className="text-gray-500 mt-2 text-lg">{lesson.summary}</p>}
+        {lesson.summary && (
+          <div
+            className="prose prose-gray max-w-none text-gray-500 mt-2 text-lg prose-p:my-1 prose-a:text-indigo-600"
+            dangerouslySetInnerHTML={{ __html: lesson.summary }}
+          />
+        )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 text-sm text-gray-400">
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" /><span>{lesson.readMinutes} min read</span>

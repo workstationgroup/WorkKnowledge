@@ -169,9 +169,10 @@ export default async function LessonsPage({
                         {lesson.category.name}
                       </span>
                       {lesson.summary && (
-                        <span className="text-xs text-gray-400 truncate hidden sm:block">
-                          {lesson.summary}
-                        </span>
+                        <span
+                          className="text-xs text-gray-400 truncate hidden sm:block [&_*]:inline [&_p]:m-0"
+                          dangerouslySetInnerHTML={{ __html: lesson.summary }}
+                        />
                       )}
                     </div>
                   </Link>
