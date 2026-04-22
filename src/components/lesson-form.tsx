@@ -115,9 +115,9 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
   const toggleGroup = (id: string) =>
     setSelectedGroups((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const save = async () => {
-    if (!title.trim() || !categoryId) { toast.error("Title and category are required"); return; }
-    if (requireGroup && selectedGroups.size === 0) { toast.error("You must assign at least one group"); return; }
+  const save = async (): Promise<{ ok: boolean; slug?: string }> => {
+    if (!title.trim() || !categoryId) { toast.error("Title and category are required"); return { ok: false }; }
+    if (requireGroup && selectedGroups.size === 0) { toast.error("You must assign at least one group"); return { ok: false }; }
     setSaving(true);
     try {
       const method = initial ? "PUT" : "POST";
@@ -128,11 +128,10 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
         body: JSON.stringify({ title, slug, content, summary, categoryId, status, readMinutes, groupIds: [...selectedGroups] }),
       });
       const text = await res.text();
-      let data: { id?: string; error?: string } = {};
+      let data: { id?: string; slug?: string; error?: string } = {};
       try { if (text) data = JSON.parse(text); } catch { /* non-JSON body */ }
       if (!res.ok) throw new Error(data.error ?? `Save failed (${res.status})`);
 
-      // Also save attachments and quiz if on the edit page
       if (initial) {
         await Promise.all([
           attachmentsRef.current?.save(),
@@ -145,11 +144,18 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
       if (!initial) {
         router.push(`/admin/lessons/${data.id}/edit`);
       }
+      return { ok: true, slug: data.slug ?? slug };
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Something went wrong");
+      return { ok: false };
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveAndPreview = async () => {
+    const res = await save();
+    if (res.ok && res.slug) window.open(`/lessons/${res.slug}`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -159,11 +165,19 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
         <h1 className="text-xl font-bold text-gray-900">{initial ? "Edit Lesson" : "New Lesson"}</h1>
         <div className="flex items-center gap-2">
           {initial && slug && (
-            <Button asChild variant="outline" className="gap-2">
-              <a href={`/lessons/${slug}`} target="_blank" rel="noreferrer">
+            <>
+              <a
+                href={`/lessons/${slug}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-gray-200 text-sm text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+              >
                 <Eye className="w-4 h-4" /> Preview
               </a>
-            </Button>
+              <Button onClick={saveAndPreview} disabled={saving} variant="outline" className="gap-2">
+                <Save className="w-4 h-4" /> Save & Preview
+              </Button>
+            </>
           )}
           <Button onClick={save} disabled={saving} className="gap-2">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
