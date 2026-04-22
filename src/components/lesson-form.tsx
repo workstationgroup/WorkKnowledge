@@ -158,15 +158,19 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
   };
 
   // Ctrl/Cmd+S → save, blocking the browser's Save Page dialog.
+  // Listen in the capture phase on document so we beat Tiptap / any editor child
+  // that might call stopPropagation. Checking e.code covers non-US keyboard layouts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      const isS = e.key === "s" || e.key === "S" || e.code === "KeyS";
+      if ((e.ctrlKey || e.metaKey) && isS && !e.altKey) {
         e.preventDefault();
+        e.stopPropagation();
         if (!saving) save();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, { capture: true });
+    return () => document.removeEventListener("keydown", onKey, { capture: true });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saving, title, slug, content, summary, categoryId, status, readMinutes, selectedGroups]);
 
