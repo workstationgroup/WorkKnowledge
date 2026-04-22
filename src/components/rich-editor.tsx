@@ -7,6 +7,7 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Youtube from "@tiptap/extension-youtube";
 import { splitBlock } from "prosemirror-commands";
+import { splitListItem } from "prosemirror-schema-list";
 import {
   Bold, Italic, List, ListOrdered, Heading2, Heading3,
   Minus, Undo, Redo, Link as LinkIcon, PlayCircle,
@@ -47,7 +48,9 @@ export function RichEditor({ value, onChange, placeholder, lessonId }: RichEdito
         if (event.key !== "Enter" || event.isComposing) return false;
         const { state, dispatch } = view;
         if (event.shiftKey) {
-          // Shift+Enter → split block (new paragraph, or split list item inside a bullet).
+          // Inside a list? Split the list item (= new bullet). Otherwise split the block (= new paragraph).
+          const listItemType = state.schema.nodes.listItem;
+          if (listItemType && splitListItem(listItemType)(state, dispatch)) return true;
           return splitBlock(state, dispatch);
         }
         // Plain Enter → hard break everywhere (including inside list items).
