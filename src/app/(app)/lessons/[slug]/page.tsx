@@ -12,6 +12,7 @@ import { LessonTimeTracker } from "@/components/lesson-time-tracker";
 import { LessonForum } from "@/components/lesson-forum";
 import { WatchLaterButton } from "@/components/watch-later-button";
 import { PageTour, type PageTourStep } from "@/components/page-tour";
+import { LightboxRoot } from "@/components/image-lightbox";
 
 const LESSON_TOUR: PageTourStep[] = [
   {
@@ -167,20 +168,22 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
 
       <Separator className="mb-6" />
 
-      {lesson.content && (
-        <div
-          className="prose prose-gray max-w-none prose-headings:font-semibold prose-a:text-indigo-600"
-          dangerouslySetInnerHTML={{ __html: lesson.content }}
-        />
-      )}
+      <LightboxRoot>
+        {lesson.content && (
+          <div
+            className="prose prose-gray max-w-none prose-headings:font-semibold prose-a:text-indigo-600"
+            dangerouslySetInnerHTML={{ __html: lesson.content }}
+          />
+        )}
 
-      <div data-tour="lesson-topics">
-        <LessonTopicsViewer
-          topics={topicsWithProgress}
-          attachments={attachments}
-          userId={user.id}
-        />
-      </div>
+        <div data-tour="lesson-topics">
+          <LessonTopicsViewer
+            topics={topicsWithProgress}
+            attachments={attachments}
+            userId={user.id}
+          />
+        </div>
+      </LightboxRoot>
 
       <Separator className="my-8" />
 
