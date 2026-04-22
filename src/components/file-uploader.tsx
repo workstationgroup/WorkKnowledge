@@ -9,8 +9,6 @@ export type UploadedFile = {
   fileName: string;
   fileSize?: number;
   blockType: "IMAGE" | "VIDEO" | "PDF" | "PPT" | "EXCEL";
-  itemId?: string;
-  driveId?: string;
 };
 
 interface FileUploaderProps {
@@ -46,18 +44,34 @@ export function FileUploader({ onUploaded, accept, label = "Upload file", lesson
   const [loading, setLoading] = useState(false);
 
   const upload = async (file: File) => {
+    if (file.type.startsWith("video/") && file.type !== "video/mp4") {
+      toast.error("Only MP4 videos are supported (mobile browsers can't play MOV/WebM reliably). Please convert to MP4 first.");
+      if (ref.current) ref.current.value = "";
+      return;
+    }
     setLoading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      if (lessonFolder) form.append("lessonFolder", lessonFolder);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
+      // Step 1 — ask our server for a presigned PUT URL
+      const signRes = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, lessonFolder }),
+      });
+      if (!signRes.ok) {
+        const err = await signRes.json().catch(() => ({ error: `Server error ${signRes.status}` }));
         throw new Error(err.error ?? "Upload failed");
       }
-      const data = await res.json();
-      onUploaded(data);
+      const { uploadUrl, publicUrl, blockType } = await signRes.json();
+
+      // Step 2 — upload the file directly to R2
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error(`Storage upload failed (${putRes.status})`);
+
+      onUploaded({ url: publicUrl, fileName: file.name, fileSize: file.size, blockType });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {

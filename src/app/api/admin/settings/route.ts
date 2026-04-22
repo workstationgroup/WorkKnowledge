@@ -4,9 +4,6 @@ import { getSessionUser } from "@/lib/session";
 import { invalidateSettingsCache } from "@/lib/integration-settings";
 
 const ALLOWED_KEYS = [
-  "sharepoint_hostname",
-  "sharepoint_site_path",
-  "sharepoint_folder",
   "line_channel_id",
   "line_channel_secret",
   "line_channel_access_token",

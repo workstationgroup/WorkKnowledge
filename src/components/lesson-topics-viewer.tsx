@@ -16,8 +16,6 @@ interface Block {
   caption?: string | null;
   fileName?: string | null;
   fileSize?: number | null;
-  driveId?: string | null;
-  itemId?: string | null;
   order: number;
 }
 
@@ -44,14 +42,6 @@ interface LessonTopicsViewerProps {
   userId: string;
 }
 
-function proxyUrl(block: Block): string {
-  if (block.driveId && block.itemId) {
-    return `/api/sharepoint-proxy?driveId=${encodeURIComponent(block.driveId)}&itemId=${encodeURIComponent(block.itemId)}`;
-  }
-  return `/api/sharepoint-proxy?url=${encodeURIComponent(block.content)}`;
-}
-
-
 function BlockRenderer({ block }: { block: Block }) {
   switch (block.type) {
     case "TEXT":
@@ -65,7 +55,7 @@ function BlockRenderer({ block }: { block: Block }) {
       return (
         <figure>
           <img
-            src={proxyUrl(block)}
+            src={block.content}
             alt={block.caption ?? block.fileName ?? "Image"}
             className="rounded-lg max-w-full w-full border border-gray-100"
           />
@@ -75,14 +65,14 @@ function BlockRenderer({ block }: { block: Block }) {
     case "VIDEO":
       return (
         <figure>
-          <video controls src={proxyUrl(block)} className="rounded-lg max-w-full w-full border border-gray-100">
+          <video controls src={block.content} className="rounded-lg max-w-full w-full border border-gray-100">
             Your browser does not support video.
           </video>
           {block.caption && <figcaption className="text-xs text-gray-400 mt-1.5">{block.caption}</figcaption>}
         </figure>
       );
     case "PDF": {
-      const pUrl = proxyUrl(block);
+      const pUrl = block.content;
       return (
         <div className="space-y-2">
           <iframe src={pUrl} className="w-full rounded-lg border border-gray-200" style={{ height: "500px" }} />
@@ -102,7 +92,7 @@ function BlockRenderer({ block }: { block: Block }) {
             <p className="text-sm font-medium text-gray-700 truncate">{block.fileName ?? (block.type === "PPT" ? "Presentation" : "Spreadsheet")}</p>
             {block.caption && <p className="text-xs text-gray-400">{block.caption}</p>}
           </div>
-          <a href={proxyUrl(block)} download={block.fileName ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-indigo-600 hover:underline shrink-0">
+          <a href={block.content} download={block.fileName ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-indigo-600 hover:underline shrink-0">
             <Download className="w-3.5 h-3.5" /> Download
           </a>
         </div>
@@ -255,7 +245,7 @@ export function LessonTopicsViewer({ topics, attachments, userId }: LessonTopics
                 {fileIcon(a.type)}
                 <span className="flex-1 text-sm text-gray-700 truncate">{a.fileName}</span>
                 {a.fileSize && <span className="text-xs text-gray-400">{formatBytes(a.fileSize)}</span>}
-                <a href={`/api/sharepoint-proxy?url=${encodeURIComponent(a.url)}`} download={a.fileName} target="_blank" rel="noreferrer" className="shrink-0">
+                <a href={a.url} download={a.fileName} target="_blank" rel="noreferrer" className="shrink-0">
                   <Download className="w-4 h-4 text-gray-400 hover:text-indigo-600" />
                 </a>
               </div>

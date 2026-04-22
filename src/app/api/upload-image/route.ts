@@ -1,36 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { getSessionUser } from "@/lib/session";
+import { makeKey, presignPut } from "@/lib/r2";
+
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
-  const body = (await request.json()) as HandleUploadBody;
-
-  try {
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async () => {
-        const user = await getSessionUser();
-        if (!user) throw new Error("Unauthorized");
-        if (user.role !== "ADMIN" && !user.canManageLessons) {
-          throw new Error("Forbidden");
-        }
-        return {
-          allowedContentTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-          maximumSizeInBytes: 10 * 1024 * 1024,
-          addRandomSuffix: true,
-          tokenPayload: JSON.stringify({ userId: user.id }),
-        };
-      },
-      onUploadCompleted: async () => {
-        // no-op; image URL is embedded into the lesson content by the client
-      },
-    });
-    return NextResponse.json(jsonResponse);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Upload failed";
-    return NextResponse.json({ error: message }, { status: 400 });
+export async function POST(req: NextRequest) {
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN" && !user.canManageLessons) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const { fileName, contentType } = (await req.json()) as { fileName?: string; contentType?: string };
+  if (!fileName || !contentType) return NextResponse.json({ error: "fileName and contentType required" }, { status: 400 });
+  if (!ALLOWED_TYPES.includes(contentType)) {
+    return NextResponse.json({ error: "Only JPEG, PNG, GIF, and WebP images are allowed" }, { status: 400 });
+  }
+
+  const key = makeKey("editor", fileName);
+  const { url, publicUrl } = await presignPut(key, contentType);
+  return NextResponse.json({ uploadUrl: url, publicUrl, key });
 }

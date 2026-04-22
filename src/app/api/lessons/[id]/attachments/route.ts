@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { recordChange } from "@/lib/changelog";
-import { deleteFromSharePoint } from "@/lib/sharepoint";
+import { deleteFromR2, keyFromPublicUrl } from "@/lib/r2";
 import { canUserManageLesson } from "@/lib/permissions";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,15 +24,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!(await canUserManageLesson(user, lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const { type, url, fileName, fileSize, itemId, driveId } = await req.json();
+    const { type, url, fileName, fileSize } = await req.json();
 
     const last = await prisma.lessonAttachment.findFirst({ where: { lessonId }, orderBy: { order: "desc" } });
     const attachment = await prisma.lessonAttachment.create({
       data: {
         lessonId, type, url, fileName, fileSize,
         order: (last?.order ?? -1) + 1,
-        sharePointItemId: itemId ?? null,
-        sharePointDriveId: driveId ?? null,
       },
     });
 
@@ -56,13 +54,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const attachment = await prisma.lessonAttachment.findUnique({ where: { id: attachmentId } });
     if (!attachment) return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
 
-    // Delete from SharePoint first (best-effort — don't block DB delete if SharePoint fails)
-    if (attachment.sharePointDriveId && attachment.sharePointItemId) {
-      try {
-        await deleteFromSharePoint(attachment.sharePointDriveId, attachment.sharePointItemId);
-      } catch (spErr) {
-        console.error("SharePoint delete failed (continuing):", spErr);
-      }
+    const key = keyFromPublicUrl(attachment.url);
+    if (key) {
+      try { await deleteFromR2(key); } catch (e) { console.error("R2 delete failed (continuing):", e); }
     }
 
     await prisma.lessonAttachment.delete({ where: { id: attachmentId, lessonId } });
