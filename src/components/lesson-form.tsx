@@ -128,7 +128,8 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
         body: JSON.stringify({ title, slug, content, summary, categoryId, status, readMinutes, groupIds: [...selectedGroups] }),
       });
       const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
+      let data: { id?: string; error?: string } = {};
+      try { if (text) data = JSON.parse(text); } catch { /* non-JSON body */ }
       if (!res.ok) throw new Error(data.error ?? `Save failed (${res.status})`);
 
       // Also save attachments and quiz if on the edit page
