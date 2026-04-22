@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { recordChange } from "@/lib/changelog";
+import { canUserManageLesson } from "@/lib/permissions";
 
 type BlockInput = {
   type: string;
@@ -45,10 +46,13 @@ export async function GET(req: NextRequest) {
 // POST /api/topics — create a topic
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { lessonId, title, mustComplete, blocks } = await req.json();
+  if (!lessonId) return NextResponse.json({ error: "lessonId required" }, { status: 400 });
+  if (!(await canUserManageLesson(user, lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
-    const { lessonId, title, mustComplete, blocks } = await req.json();
 
     const lastTopic = await prisma.lessonTopic.findFirst({
       where: { lessonId },

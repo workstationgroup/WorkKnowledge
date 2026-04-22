@@ -9,7 +9,8 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") {
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN" && !user.canManageLessons) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

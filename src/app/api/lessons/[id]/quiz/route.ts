@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { recordChange } from "@/lib/changelog";
+import { canUserManageLesson } from "@/lib/permissions";
 
 type QuestionInput = {
   text: string;
@@ -29,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!quiz) return NextResponse.json(null);
 
-  if (user.role !== "ADMIN") {
+  if (!(await canUserManageLesson(user, lessonId))) {
     return NextResponse.json({
       ...quiz,
       questions: quiz.questions.map((q) => ({
@@ -46,7 +47,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: lessonId } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await canUserManageLesson(user, lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
     const { passScore, questions } = await req.json();
@@ -106,7 +108,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: lessonId } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await canUserManageLesson(user, lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
     await prisma.lessonQuiz.delete({ where: { lessonId } });
