@@ -68,8 +68,6 @@ function AttachmentsEditor({ lessonId, lessonTitle }, ref) {
             url: s.file.url,
             fileName: s.file.fileName,
             fileSize: s.file.fileSize,
-            itemId: s.file.itemId,
-            driveId: s.file.driveId,
           }),
         });
         if (!res.ok) {

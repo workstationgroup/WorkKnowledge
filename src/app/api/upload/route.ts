@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
-import { uploadToSharePoint } from "@/lib/sharepoint";
+import { makeKey, presignPut } from "@/lib/r2";
 
 export const runtime = "nodejs";
-
-const MAX_SIZE = 100 * 1024 * 1024; // 100 MB
 
 const MIME_TO_TYPE: Record<string, string> = {
   "image/jpeg": "IMAGE",
@@ -21,7 +19,6 @@ const MIME_TO_TYPE: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "EXCEL",
 };
 
-// Extension fallback for when browsers report a generic MIME type (e.g. application/zip, application/octet-stream)
 const EXT_TO_TYPE: Record<string, string> = {
   jpg: "IMAGE", jpeg: "IMAGE", png: "IMAGE", gif: "IMAGE", webp: "IMAGE",
   mp4: "VIDEO", mov: "VIDEO", webm: "VIDEO",
@@ -38,28 +35,25 @@ function resolveBlockType(mimeType: string, fileName: string): string | undefine
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  try {
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    const lessonFolder = (formData.get("lessonFolder") as string) || "General";
-
-    if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
-    if (file.size > MAX_SIZE) return NextResponse.json({ error: "File too large (max 50 MB)" }, { status: 400 });
-
-    const blockType = resolveBlockType(file.type, file.name);
-    if (!blockType) return NextResponse.json({ error: "File type not supported. Allowed: images, video, PDF, PPT, Excel" }, { status: 400 });
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const { url, itemId, driveId } = await uploadToSharePoint(buffer, file.name, file.type, lessonFolder);
-
-    return NextResponse.json({ url, fileName: file.name, fileSize: file.size, blockType, itemId, driveId });
-  } catch (err) {
-    console.error("Upload error:", err);
-    const message = err instanceof Error ? err.message : "Upload failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN" && !user.canManageLessons) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const { fileName, contentType, lessonFolder } = (await req.json()) as {
+    fileName?: string;
+    contentType?: string;
+    lessonFolder?: string;
+  };
+
+  if (!fileName || !contentType) return NextResponse.json({ error: "fileName and contentType required" }, { status: 400 });
+
+  const blockType = resolveBlockType(contentType, fileName);
+  if (!blockType) return NextResponse.json({ error: "File type not supported. Allowed: images, video, PDF, PPT, Excel" }, { status: 400 });
+
+  const folder = `lessons/${(lessonFolder || "General").replace(/[^A-Za-z0-9._-]/g, "_")}`;
+  const key = makeKey(folder, fileName);
+  const { url, publicUrl } = await presignPut(key, contentType);
+
+  return NextResponse.json({ uploadUrl: url, publicUrl, key, blockType });
 }

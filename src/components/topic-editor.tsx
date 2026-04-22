@@ -19,8 +19,6 @@ interface Block {
   caption?: string;
   fileName?: string;
   fileSize?: number;
-  driveId?: string;
-  itemId?: string;
 }
 
 interface Topic {
@@ -180,7 +178,7 @@ function BlockEditor({
             block.type === "EXCEL" ? ".xls,.xlsx" :
             undefined
           }
-          onUploaded={(f: UploadedFile) => onChange({ ...block, content: f.url, fileName: f.fileName, fileSize: f.fileSize, driveId: f.driveId, itemId: f.itemId })}
+          onUploaded={(f: UploadedFile) => onChange({ ...block, content: f.url, fileName: f.fileName, fileSize: f.fileSize })}
           label={`Upload ${BLOCK_TYPE_LABELS[block.type]}`}
         />
       )}

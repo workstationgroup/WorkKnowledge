@@ -145,15 +145,13 @@ model LessonChangelog {
 }
 
 model LessonAttachment {
-  id                String    @id @default(cuid())
-  lessonId          String
-  type              BlockType
-  url               String    // SharePoint share link
-  fileName          String    // original file name
-  fileSize          Int?      // bytes
-  order             Int       @default(0)
-  sharePointItemId  String?   // Graph API drive item ID (for deletion)
-  sharePointDriveId String?   // Graph API drive ID (for deletion)
+  id        String    @id @default(cuid())
+  lessonId  String
+  type      BlockType
+  url       String    // R2 public URL
+  fileName  String
+  fileSize  Int?      // bytes
+  order     Int       @default(0)
 
   lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 }
@@ -176,12 +174,10 @@ model TopicBlock {
   id       String    @id @default(cuid())
   topicId  String
   type     BlockType
-  content  String    @db.Text // HTML for TEXT; SharePoint sharing URL for files
+  content  String    @db.Text // HTML for TEXT; R2 public URL for files
   caption  String?
-  fileName String?   // original file name shown to user
+  fileName String?
   fileSize Int?      // bytes
-  driveId  String?   // Graph API drive ID (for direct content access)
-  itemId   String?   // Graph API drive item ID (for direct content access)
   order    Int       @default(0)
 
   topic LessonTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
