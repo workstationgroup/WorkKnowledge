@@ -487,6 +487,12 @@ export const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(function
   const updateQ = (i: number, q: Question) => setQuestions((prev) => prev.map((x, idx) => (idx === i ? q : x)));
 
   const save = async (): Promise<boolean> => {
+    // No existing quiz + nothing filled in → user didn't intend to create a quiz, skip.
+    const isEmpty = questions.every(
+      (q) => !q.text.trim() && !q.choices.some((c) => c.text.trim() || c.imageUrl),
+    );
+    if (!hasQuiz && isEmpty) return true;
+
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.text.trim()) { toast.error(`Question ${i + 1}: question text required`); return false; }
