@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getUserGroupIds, lessonInUserGroups } from "@/lib/permissions";
+
+async function canManageThisLesson(user: { id: string; role: string; canManageLessons: boolean }, lessonId: string) {
+  if (user.role === "ADMIN") return true;
+  if (!user.canManageLessons) return false;
+  const lesson = await prisma.lesson.findUnique({ where: { id: lessonId }, select: { permissions: { select: { groupId: true } } } });
+  if (!lesson) return false;
+  const groupIds = await getUserGroupIds(user.id);
+  return lessonInUserGroups(lesson.permissions, groupIds);
+}
 
 // GET /api/lessons/[id]/versions — list all versions for a lesson
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: lessonId } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await canManageThisLesson(user, lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const versions = await prisma.lessonVersion.findMany({
     where: { lessonId },
@@ -29,7 +40,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: lessonId } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await canManageThisLesson(user, lessonId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { versionId } = await req.json();
 
