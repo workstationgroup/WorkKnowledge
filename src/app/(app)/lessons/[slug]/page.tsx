@@ -50,12 +50,18 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   });
   if (!lesson) notFound();
 
-  if (user.role !== "ADMIN" && lesson.status !== "PUBLISHED") notFound();
-
-  if (user.role !== "ADMIN" && lesson.permissions.length > 0) {
+  if (user.role !== "ADMIN") {
     const userGroups = await prisma.groupMember.findMany({ where: { userId: user.id }, select: { groupId: true } });
     const groupIds = new Set(userGroups.map((m) => m.groupId));
-    if (!lesson.permissions.some((p) => groupIds.has(p.groupId))) notFound();
+    const isManagerForThisLesson = user.canManageLessons && lesson.permissions.some((p) => groupIds.has(p.groupId));
+
+    // Non-managers can't see drafts / cancelled lessons
+    if (!isManagerForThisLesson && lesson.status !== "PUBLISHED") notFound();
+
+    // Group-restricted lesson: regular employees must be in a permitted group
+    if (!isManagerForThisLesson && lesson.permissions.length > 0 && !lesson.permissions.some((p) => groupIds.has(p.groupId))) {
+      notFound();
+    }
   }
 
   const watchLaterEntry = await prisma.watchLater.findUnique({
