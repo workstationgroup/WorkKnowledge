@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { PageTour, type PageTourStep } from "@/components/page-tour";
 
@@ -157,10 +157,19 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
       {/* Sticky header — top-14 on mobile to sit below the fixed nav bar */}
       <div className="sticky top-14 md:top-0 z-20 bg-white border-b border-gray-200 px-4 sm:px-8 py-3 flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">{initial ? "Edit Lesson" : "New Lesson"}</h1>
-        <Button onClick={save} disabled={saving} className="gap-2">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : "Save"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {initial && slug && (
+            <Button asChild variant="outline" className="gap-2">
+              <a href={`/lessons/${slug}`} target="_blank" rel="noreferrer">
+                <Eye className="w-4 h-4" /> Preview
+              </a>
+            </Button>
+          )}
+          <Button onClick={save} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </div>
       </div>
 
       <div className="px-4 sm:px-8 pt-6">
