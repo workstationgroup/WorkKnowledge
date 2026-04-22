@@ -2,12 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { Users, Shield, UserCheck } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const EMPLOYEES_TOUR: PageTourStep[] = [
+  {
+    title: "Manage Employees",
+    description: "View all staff who have signed in. Click any employee to assign their position and access groups.",
+    placement: "center",
+  },
+  {
+    target: "employee-list",
+    title: "Employee List",
+    description: "Each card shows the employee's name, email, position, and groups. Click a card to open the edit panel and make changes.",
+    placement: "bottom",
+  },
+];
 
 interface Group {
   id: string;
@@ -26,6 +41,8 @@ interface Employee {
   name: string;
   email: string;
   role: "ADMIN" | "EMPLOYEE";
+  canManageLessons: boolean;
+  avatarUrl?: string | null;
   positionId: string | null;
   position: Position | null;
   groupMembers: { group: Group }[];
@@ -38,6 +55,7 @@ export default function EmployeesPage() {
   const [selected, setSelected] = useState<Employee | null>(null);
   const [positionId, setPositionId] = useState<string>("none");
   const [memberGroups, setMemberGroups] = useState<Set<string>>(new Set());
+  const [canManageLessons, setCanManageLessons] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -57,6 +75,7 @@ export default function EmployeesPage() {
     setSelected(emp);
     setPositionId(emp.positionId ?? "none");
     setMemberGroups(new Set(emp.groupMembers.map((gm) => gm.group.id)));
+    setCanManageLessons(emp.canManageLessons);
   };
 
   const toggleGroup = (groupId: string) => {
@@ -71,11 +90,11 @@ export default function EmployeesPage() {
     if (!selected) return;
     setSaving(true);
     try {
-      // Save position
+      // Save position and lesson management permission
       await fetch(`/api/employees/${selected.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ positionId: positionId === "none" ? null : positionId }),
+        body: JSON.stringify({ positionId: positionId === "none" ? null : positionId, canManageLessons }),
       });
 
       // Sync group memberships
@@ -120,11 +139,12 @@ export default function EmployeesPage() {
         <p className="text-gray-500 mt-1">Manage staff positions, groups, and access</p>
       </div>
 
-      <div className="space-y-3">
+      <div data-tour="employee-list" className="space-y-3">
         {employees.map((emp) => (
           <Card key={emp.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openEmployee(emp)}>
             <CardContent className="py-4 flex items-center gap-4">
               <Avatar className="w-10 h-10 flex-shrink-0">
+                {emp.avatarUrl && <AvatarImage src={emp.avatarUrl} alt={emp.name} />}
                 <AvatarFallback className="bg-indigo-100 text-indigo-700 font-semibold text-sm">
                   {initials(emp.name)}
                 </AvatarFallback>
@@ -157,6 +177,8 @@ export default function EmployeesPage() {
         ))}
       </div>
 
+      <PageTour tourKey="wso_page_employees_v1" steps={EMPLOYEES_TOUR} />
+
       {/* Edit Dialog */}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="max-w-md">
@@ -167,6 +189,7 @@ export default function EmployeesPage() {
             <div className="space-y-5 py-2">
               <div className="flex items-center gap-3">
                 <Avatar className="w-12 h-12">
+                  {selected.avatarUrl && <AvatarImage src={selected.avatarUrl} alt={selected.name} />}
                   <AvatarFallback className="bg-indigo-100 text-indigo-700 font-bold">
                     {initials(selected.name)}
                   </AvatarFallback>
@@ -218,6 +241,28 @@ export default function EmployeesPage() {
                   {groups.length === 0 && <p className="text-sm text-gray-400">No groups yet. Create them first.</p>}
                 </div>
               </div>
+
+              {/* Lesson manager permission */}
+              {selected.role !== "ADMIN" && (
+                <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Can manage lessons</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Can create & edit lessons within their groups</p>
+                  </div>
+                  <button
+                    onClick={() => setCanManageLessons((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      canManageLessons ? "bg-indigo-600" : "bg-gray-200"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        canManageLessons ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>

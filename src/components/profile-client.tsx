@@ -3,19 +3,48 @@
 import { useEffect, useState } from "react";
 import {
   User, Mail, Shield, Calendar, Link2, Link2Off,
-  Bell, BellOff, CheckCircle2, AlertCircle, Loader2,
+  Bell, CheckCircle2, AlertCircle, Loader2,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const PROFILE_TOUR: PageTourStep[] = [
+  {
+    title: "My Profile",
+    description: "This page shows your account details, connected accounts, and notification preferences.",
+    placement: "center",
+  },
+  {
+    target: "profile-info",
+    title: "Personal Information",
+    description: "Your name, email, position, and the groups you belong to are shown here. Contact an admin to update your position or groups.",
+    placement: "bottom",
+  },
+  {
+    target: "connected-accounts",
+    title: "Connected Accounts",
+    description: "You can connect your LINE account to receive push notifications about new lessons and training updates.",
+    placement: "bottom",
+  },
+  {
+    target: "notification-prefs",
+    title: "Notification Preferences",
+    description: "Toggle email and LINE notifications on or off. LINE notifications require a connected LINE account.",
+    placement: "top",
+  },
+];
 
 interface ProfileUser {
   id: string;
   name: string;
   email: string;
   role: string;
+  avatarUrl?: string | null;
   lineUserId: string | null;
   lineDisplayName: string | null;
   notifyEmail: boolean;
@@ -128,7 +157,7 @@ export function ProfileClient({ user, lineStatus, lineReason, lineConfigured }: 
       </div>
 
       {/* ── Personal info ── */}
-      <Card>
+      <Card data-tour="profile-info">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <User className="w-4 h-4 text-gray-400" /> Personal Information
@@ -137,9 +166,12 @@ export function ProfileClient({ user, lineStatus, lineReason, lineConfigured }: 
         <CardContent className="space-y-4">
           {/* Avatar + name */}
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center text-xl font-bold text-indigo-700 flex-shrink-0">
-              {initials}
-            </div>
+            <Avatar className="w-14 h-14 flex-shrink-0">
+              {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
+              <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xl font-bold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
             <div>
               <p className="text-lg font-semibold text-gray-900">{user.name}</p>
               <div className="flex items-center gap-2 mt-0.5">
@@ -190,7 +222,7 @@ export function ProfileClient({ user, lineStatus, lineReason, lineConfigured }: 
       </Card>
 
       {/* ── Connected accounts ── */}
-      <Card>
+      <Card data-tour="connected-accounts">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Link2 className="w-4 h-4 text-gray-400" /> Connected Accounts
@@ -285,7 +317,7 @@ export function ProfileClient({ user, lineStatus, lineReason, lineConfigured }: 
       </Card>
 
       {/* ── Notification preferences ── */}
-      <Card>
+      <Card data-tour="notification-prefs">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Bell className="w-4 h-4 text-gray-400" /> Notification Preferences
@@ -369,6 +401,7 @@ export function ProfileClient({ user, lineStatus, lineReason, lineConfigured }: 
           </label>
         </CardContent>
       </Card>
+      <PageTour tourKey="wso_page_profile_v1" steps={PROFILE_TOUR} />
     </div>
   );
 }

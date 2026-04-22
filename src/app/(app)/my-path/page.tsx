@@ -5,6 +5,27 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const MY_PATH_TOUR: PageTourStep[] = [
+  {
+    title: "My Training Path",
+    description: "This page shows the lessons assigned to your job position. Work through them in order to complete your training.",
+    placement: "center",
+  },
+  {
+    target: "position-card",
+    title: "Your Position & Progress",
+    description: "This card shows your job position, how many lessons you've completed, and your overall training progress percentage.",
+    placement: "bottom",
+  },
+  {
+    target: "path-lessons",
+    title: "Lesson Checklist",
+    description: "Lessons are listed in the recommended order. Completed lessons are crossed out in green. Click any lesson to open it.",
+    placement: "top",
+  },
+];
 
 export default async function MyPathPage() {
   const session = await auth();
@@ -49,7 +70,7 @@ export default async function MyPathPage() {
     <div className="p-4 sm:p-6 md:p-8 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-4">My Training Path</h1>
 
-      <Card className="mb-6">
+      <Card data-tour="position-card" className="mb-6">
         <CardContent className="pt-5 pb-4">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -69,7 +90,7 @@ export default async function MyPathPage() {
         </CardContent>
       </Card>
 
-      <div className="space-y-3">
+      <div data-tour="path-lessons" className="space-y-3">
         {lessons.map((lesson, idx) => {
           const done = completedIds.has(lesson.id);
           return (
@@ -94,6 +115,7 @@ export default async function MyPathPage() {
           );
         })}
       </div>
+      <PageTour tourKey="wso_page_mypath_v1" steps={MY_PATH_TOUR} />
     </div>
   );
 }

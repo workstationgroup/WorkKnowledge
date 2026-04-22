@@ -19,12 +19,19 @@ model User {
   lineUserId      String?  @unique // LINE user ID (for sending messages via LINE Messaging API)
   lineDisplayName String?          // LINE display name shown in profile
 
+  // Lesson authoring permission (non-admin who can create/edit lessons within their groups)
+  canManageLessons Boolean @default(false)
+
+  // Microsoft 365 profile photo stored as base64 data URL, synced on each sign-in
+  avatarUrl        String? @db.Text
+
   // Notification preferences
   notifyEmail     Boolean  @default(true)
   notifyLine      Boolean  @default(false)
 
   position      Position?            @relation(fields: [positionId], references: [id])
   groupMembers  GroupMember[]
+  watchLater    WatchLater[]
   progress      LessonProgress[]
   topicProgress LessonTopicProgress[]
   quizAttempts  QuizAttempt[]
@@ -81,6 +88,8 @@ model Lesson {
   updatedAt   DateTime     @updatedAt
 
   category          Category           @relation(fields: [categoryId], references: [id])
+  forumPosts        ForumPost[]
+  watchLater        WatchLater[]
   permissions       LessonPermission[]
   progress          LessonProgress[]
   positionTemplates PositionLesson[]
@@ -89,6 +98,18 @@ model Lesson {
   changelog         LessonChangelog[]
   quiz              LessonQuiz?
   versions          LessonVersion[]
+  relatedTo         LessonRelation[]   @relation("LessonRelationFrom")
+  relatedFrom       LessonRelation[]   @relation("LessonRelationTo")
+}
+
+model LessonRelation {
+  lessonId        String
+  relatedLessonId String
+
+  lesson        Lesson @relation("LessonRelationFrom", fields: [lessonId], references: [id], onDelete: Cascade)
+  relatedLesson Lesson @relation("LessonRelationTo", fields: [relatedLessonId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, relatedLessonId])
 }
 
 model LessonVersion {
@@ -155,9 +176,12 @@ model TopicBlock {
   id       String    @id @default(cuid())
   topicId  String
   type     BlockType
-  content  String    @db.Text // HTML for TEXT; URL or /uploads/... path for files
+  content  String    @db.Text // HTML for TEXT; SharePoint sharing URL for files
   caption  String?
   fileName String?   // original file name shown to user
+  fileSize Int?      // bytes
+  driveId  String?   // Graph API drive ID (for direct content access)
+  itemId   String?   // Graph API drive item ID (for direct content access)
   order    Int       @default(0)
 
   topic LessonTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
@@ -195,6 +219,18 @@ model LessonPermission {
   group  Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([lessonId, groupId])
+}
+
+model WatchLater {
+  id        String   @id @default(cuid())
+  userId    String
+  lessonId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
 }
 
 model LessonProgress {
@@ -268,7 +304,8 @@ model QuizQuestion {
 model QuizChoice {
   id         String  @id @default(cuid())
   questionId String
-  text       String
+  text       String  @default("")
+  imageUrl   String?
   isCorrect  Boolean @default(false)
   order      Int     @default(0)
 
@@ -286,6 +323,32 @@ model QuizAttempt {
 
   quiz LessonQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
   user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ForumPost {
+  id        String   @id @default(cuid())
+  lessonId  String
+  userId    String
+  userName  String
+  content   String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lesson  Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  replies ForumReply[]
+}
+
+model ForumReply {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  userName  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
 model Setting {

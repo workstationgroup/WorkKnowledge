@@ -11,6 +11,27 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Link from "next/link";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const POSITIONS_TOUR: PageTourStep[] = [
+  {
+    title: "Position Templates",
+    description: "Positions define the training curriculum for each job role. Employees are assigned a position, and they'll see those lessons in their Training Path.",
+    placement: "center",
+  },
+  {
+    target: "new-position-btn",
+    title: "Create a Position",
+    description: "Click here to create a new job position. Give it a name, description, and colour, then add lessons to it.",
+    placement: "bottom",
+  },
+  {
+    target: "position-list",
+    title: "Position Cards",
+    description: "Each card shows the position name, how many lessons are assigned, and how many staff hold that position. Click 'Edit Template' to manage its lessons.",
+    placement: "top",
+  },
+];
 
 interface Position {
   id: string;
@@ -96,7 +117,7 @@ export default function PositionsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Position Templates</h1>
           <p className="text-gray-500 mt-1">Define job positions and their required training lessons</p>
         </div>
-        <Button onClick={openNew} className="flex-shrink-0">
+        <Button data-tour="new-position-btn" onClick={openNew} className="flex-shrink-0">
           <Plus className="w-4 h-4 mr-2" /> New Position
         </Button>
       </div>
@@ -156,7 +177,7 @@ export default function PositionsPage() {
         </Card>
       )}
 
-      <div className="grid gap-4">
+      <div data-tour="position-list" className="grid gap-4">
         {filtered.map((p) => (
           <Card key={p.id} className="hover:shadow-md transition-shadow">
             <CardContent className="py-4 flex items-center gap-4">
@@ -200,6 +221,8 @@ export default function PositionsPage() {
           </Card>
         ))}
       </div>
+
+      <PageTour tourKey="wso_page_positions_v1" steps={POSITIONS_TOUR} />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

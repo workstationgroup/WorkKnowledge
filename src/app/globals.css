@@ -129,3 +129,20 @@
     @apply font-sans;
   }
 }
+
+/* ── Responsive iframes (YouTube embeds, PDFs) ─────────────────────────────── */
+/* Covers Tiptap's YouTube extension output and dangerouslySetInnerHTML prose */
+.prose iframe,
+.tiptap iframe,
+[data-youtube-video] iframe {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  border-radius: 0.5rem;
+}
+
+[data-youtube-video] {
+  width: 100% !important;
+  max-width: 100% !important;
+}

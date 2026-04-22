@@ -32,7 +32,7 @@ export function RichEditor({ value, onChange, placeholder, lessonFolder }: RichE
       Placeholder.configure({ placeholder: placeholder ?? "Start writing..." }),
       Link.configure({ openOnClick: false }),
       Image.configure({ inline: false, allowBase64: false }),
-      Youtube.configure({ width: 640, height: 360, nocookie: false }),
+      Youtube.configure({ width: 640, height: 360, nocookie: false, HTMLAttributes: { class: "w-full aspect-video h-auto" } }),
     ],
     content: value,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -85,8 +85,7 @@ export function RichEditor({ value, onChange, placeholder, lessonFolder }: RichE
     try {
       const form = new FormData();
       form.append("file", file);
-      if (lessonFolder) form.append("lessonFolder", lessonFolder);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const res = await fetch("/api/upload-image", { method: "POST", body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Upload failed" }));
         alert(err.error ?? "Upload failed");

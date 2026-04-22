@@ -19,6 +19,8 @@ interface Block {
   caption?: string;
   fileName?: string;
   fileSize?: number;
+  driveId?: string;
+  itemId?: string;
 }
 
 interface Topic {
@@ -101,6 +103,16 @@ function YouTubeBlockEditor({ block, onChange }: { block: Block; onChange: (b: B
   );
 }
 
+/** Convert AllItems.aspx viewer URL → direct file URL using the "id" query param. */
+function toDirectUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const idParam = u.searchParams.get("id");
+    if (idParam) return `${u.origin}${encodeURI(idParam)}`;
+  } catch { /* ignore */ }
+  return url;
+}
+
 function BlockEditor({
   block,
   onChange,
@@ -131,13 +143,32 @@ function BlockEditor({
       ) : block.type === "YOUTUBE" ? (
         <YouTubeBlockEditor block={block} onChange={onChange} />
       ) : block.content ? (
+        block.type === "IMAGE" ? (
+          <div className="space-y-1.5">
+            <div className="relative">
+              <img
+                src={toDirectUrl(block.content)}
+                alt={block.caption ?? block.fileName ?? "Image"}
+                className="rounded-lg max-h-48 w-full object-contain border border-gray-200 bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => onChange({ ...block, content: "", fileName: undefined })}
+                className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow text-gray-400 hover:text-red-400"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="flex items-center gap-2 p-2 rounded bg-white border border-gray-200">
           <span className="text-xs text-gray-600 truncate flex-1">{block.fileName ?? "File uploaded"}</span>
-          <a href={block.content} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline shrink-0">View</a>
+          <a href={toDirectUrl(block.content)} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline shrink-0">View</a>
           <button type="button" onClick={() => onChange({ ...block, content: "", fileName: undefined })} className="text-gray-300 hover:text-red-400">
             <X className="w-3 h-3" />
           </button>
         </div>
+        )
       ) : (
         <FileUploader
           lessonFolder={lessonFolder}
@@ -149,7 +180,7 @@ function BlockEditor({
             block.type === "EXCEL" ? ".xls,.xlsx" :
             undefined
           }
-          onUploaded={(f: UploadedFile) => onChange({ ...block, content: f.url, fileName: f.fileName, fileSize: f.fileSize })}
+          onUploaded={(f: UploadedFile) => onChange({ ...block, content: f.url, fileName: f.fileName, fileSize: f.fileSize, driveId: f.driveId, itemId: f.itemId })}
           label={`Upload ${BLOCK_TYPE_LABELS[block.type]}`}
         />
       )}

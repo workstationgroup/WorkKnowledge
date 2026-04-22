@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getLineSettings } from "@/lib/integration-settings";
@@ -8,7 +7,9 @@ import crypto from "crypto";
 /**
  * GET /api/auth/line
  * Initiates LINE Login OAuth flow.
- * Stores a CSRF state in a short-lived cookie.
+ * Stores a CSRF state in a short-lived cookie set directly on the redirect
+ * response — using cookies() + NextResponse.redirect() together can lose
+ * Set-Cookie headers in Next.js App Router.
  */
 export async function GET(_req: NextRequest) {
   const user = await getSessionUser();
@@ -25,15 +26,6 @@ export async function GET(_req: NextRequest) {
 
   const state = crypto.randomBytes(16).toString("hex");
 
-  const cookieStore = await cookies();
-  cookieStore.set("line_oauth_state", state, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 300, // 5 minutes
-    path: "/",
-  });
-
   const params = new URLSearchParams({
     response_type: "code",
     client_id: channelId,
@@ -42,9 +34,20 @@ export async function GET(_req: NextRequest) {
     scope: "profile",
   });
 
-  return NextResponse.redirect(
+  const response = NextResponse.redirect(
     `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`
   );
+
+  // Set cookie directly on the response so it's included in the redirect headers
+  response.cookies.set("line_oauth_state", state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 300, // 5 minutes
+    path: "/",
+  });
+
+  return response;
 }
 
 /**

@@ -41,15 +41,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const name = user.name ?? email ?? "Unknown";
       if (!email) return false;
 
+      // Fetch profile photo from Microsoft Graph (48×48 px, ~3-10 KB as base64)
+      let avatarUrl: string | undefined;
+      if (account.access_token) {
+        try {
+          const photoRes = await fetch(
+            "https://graph.microsoft.com/v1.0/me/photos/48x48/$value",
+            { headers: { Authorization: `Bearer ${account.access_token}` } }
+          );
+          if (photoRes.ok) {
+            const buffer = await photoRes.arrayBuffer();
+            const contentType = photoRes.headers.get("content-type") ?? "image/jpeg";
+            avatarUrl = `data:${contentType};base64,${Buffer.from(buffer).toString("base64")}`;
+          }
+        } catch {
+          // Photo fetch failed — not critical, continue without it
+        }
+      }
+
       // Auto-create user on first sign-in; first user becomes ADMIN
       const count = await prisma.user.count();
       await prisma.user.upsert({
         where: { email },
-        update: { name },
+        update: { name, ...(avatarUrl !== undefined && { avatarUrl }) },
         create: {
           email,
           name,
           role: count === 0 ? "ADMIN" : "EMPLOYEE",
+          ...(avatarUrl !== undefined && { avatarUrl }),
         },
       });
 
@@ -60,11 +79,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user?.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: session.user.email },
-          select: { id: true, role: true },
+          select: { id: true, role: true, canManageLessons: true, avatarUrl: true },
         });
         if (dbUser) {
           session.user.id = dbUser.id;
           session.user.role = dbUser.role;
+          session.user.canManageLessons = dbUser.canManageLessons;
+          // Use stored avatar (synced from MS365) over any provider-supplied image
+          if (dbUser.avatarUrl) session.user.image = dbUser.avatarUrl;
         }
       }
       return session;

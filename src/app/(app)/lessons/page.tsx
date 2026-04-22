@@ -5,6 +5,28 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { LessonsFilter, Pagination } from "@/components/lessons-filter";
+import { WatchLaterButton } from "@/components/watch-later-button";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const LESSONS_TOUR: PageTourStep[] = [
+  {
+    title: "All Lessons",
+    description: "Browse the full library of training materials. Search by name, filter by category or status, and click any lesson to open it.",
+    placement: "center",
+  },
+  {
+    target: "lessons-filter",
+    title: "Search & Filter",
+    description: "Type a lesson title to search, or use the category and status filters to narrow down the list.",
+    placement: "bottom",
+  },
+  {
+    target: "lesson-results",
+    title: "Lesson Cards",
+    description: "Each card shows the lesson title, category, estimated read time, and your completion status. Click to open.",
+    placement: "top",
+  },
+];
 
 const PAGE_SIZE = 15;
 
@@ -69,12 +91,21 @@ export default async function LessonsPage({
   const safePage = Math.min(page, totalPages);
   const pageLessons = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  // Completed set
-  const progress = await prisma.lessonProgress.findMany({
-    where: { userId: user.id, completedAt: { not: null } },
-    select: { lessonId: true },
-  });
+  const lessonIds = pageLessons.map((l) => l.id);
+
+  // Completed set + Watch Later set for current page
+  const [progress, watchLaterRaw] = await Promise.all([
+    prisma.lessonProgress.findMany({
+      where: { userId: user.id, lessonId: { in: lessonIds }, completedAt: { not: null } },
+      select: { lessonId: true },
+    }),
+    prisma.watchLater.findMany({
+      where: { userId: user.id, lessonId: { in: lessonIds } },
+      select: { lessonId: true },
+    }),
+  ]);
   const completedIds = new Set(progress.map((p) => p.lessonId));
+  const watchLaterIds = new Set(watchLaterRaw.map((w) => w.lessonId));
 
   const categories = await prisma.category.findMany({ orderBy: { order: "asc" } });
 
@@ -87,7 +118,7 @@ export default async function LessonsPage({
         <p className="text-gray-500 mt-1">Browse and search all available training materials</p>
       </div>
 
-      <div className="mb-6">
+      <div data-tour="lessons-filter" className="mb-6">
         <LessonsFilter categories={categories} isAdmin={isAdmin} total={total} />
       </div>
 
@@ -103,76 +134,73 @@ export default async function LessonsPage({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div data-tour="lesson-results" className="space-y-2">
           {pageLessons.map((lesson) => {
             const done = completedIds.has(lesson.id);
+            const saved = watchLaterIds.has(lesson.id);
             return (
-              <Link key={lesson.id} href={`/lessons/${lesson.slug}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="py-4 flex items-center gap-4">
-                    {/* Status icon */}
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        done ? "bg-green-100" : "bg-gray-100"
-                      }`}
-                    >
-                      {done ? (
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <BookOpen className="w-4 h-4 text-gray-400" />
-                      )}
-                    </div>
+              <Card key={lesson.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="py-4 flex items-center gap-3">
+                  {/* Status icon */}
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      done ? "bg-green-100" : "bg-gray-100"
+                    }`}
+                  >
+                    {done
+                      ? <CheckCircle className="w-4 h-4 text-green-600" />
+                      : <BookOpen className="w-4 h-4 text-gray-400" />
+                    }
+                  </div>
 
-                    {/* Title + summary */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{lesson.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{
-                            backgroundColor: lesson.category.color + "20",
-                            color: lesson.category.color,
-                          }}
-                        >
-                          {lesson.category.name}
+                  {/* Title + summary — clickable */}
+                  <Link href={`/lessons/${lesson.slug}`} className="flex-1 min-w-0 group">
+                    <p className="font-medium text-gray-900 truncate group-hover:text-indigo-600 transition-colors">
+                      {lesson.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{
+                          backgroundColor: lesson.category.color + "20",
+                          color: lesson.category.color,
+                        }}
+                      >
+                        {lesson.category.name}
+                      </span>
+                      {lesson.summary && (
+                        <span className="text-xs text-gray-400 truncate hidden sm:block">
+                          {lesson.summary}
                         </span>
-                        {lesson.summary && (
-                          <span className="text-xs text-gray-400 truncate">{lesson.summary}</span>
-                        )}
-                      </div>
+                      )}
                     </div>
+                  </Link>
 
-                    {/* Badges + time */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {lesson.status === "DRAFT" && (
-                        <Badge variant="outline" className="text-xs text-amber-500 border-amber-200">
-                          Draft
-                        </Badge>
-                      )}
-                      {lesson.status === "CANCELLED" && (
-                        <Badge variant="outline" className="text-xs text-gray-400 border-gray-200">
-                          Cancelled
-                        </Badge>
-                      )}
-                      {done && (
-                        <Badge variant="secondary" className="text-xs">
-                          Done
-                        </Badge>
-                      )}
-                      <div className="flex items-center gap-1 text-xs text-gray-400">
-                        <Clock className="w-3 h-3" />
-                        <span>{lesson.readMinutes} min</span>
-                      </div>
+                  {/* Badges + time + bookmark */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {lesson.status === "DRAFT" && (
+                      <Badge variant="outline" className="text-xs text-amber-500 border-amber-200">Draft</Badge>
+                    )}
+                    {lesson.status === "CANCELLED" && (
+                      <Badge variant="outline" className="text-xs text-gray-400 border-gray-200">Cancelled</Badge>
+                    )}
+                    {done && (
+                      <Badge variant="secondary" className="text-xs hidden sm:inline-flex">Done</Badge>
+                    )}
+                    <div className="flex items-center gap-1 text-xs text-gray-400">
+                      <Clock className="w-3 h-3" />{lesson.readMinutes} min
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                    <WatchLaterButton lessonId={lesson.id} saved={saved} size="sm" />
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
       )}
 
       <Pagination page={safePage} totalPages={totalPages} />
+      <PageTour tourKey="wso_page_lessons_v1" steps={LESSONS_TOUR} />
     </div>
   );
 }

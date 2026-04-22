@@ -1,11 +1,39 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getUserGroupIds } from "@/lib/permissions";
 import { Plus, Eye, Clock, BookOpen, Pencil } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { LessonsFilter, Pagination } from "@/components/lessons-filter";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const ADMIN_LESSONS_TOUR: PageTourStep[] = [
+  {
+    title: "Manage Lessons",
+    description: "Here you can create, edit, and manage all lessons in the platform. Employees only see published lessons.",
+    placement: "center",
+  },
+  {
+    target: "new-lesson-btn",
+    title: "Create a New Lesson",
+    description: "Click here to start building a new lesson. You can add topics, attachments, and a quiz before publishing.",
+    placement: "bottom",
+  },
+  {
+    target: "admin-filter",
+    title: "Search & Filter",
+    description: "Search lessons by title, filter by category or status. Admins can also see Draft and Cancelled lessons.",
+    placement: "bottom",
+  },
+  {
+    target: "admin-lesson-list",
+    title: "Lesson List",
+    description: "Each row shows the lesson title, status, category, and read time. Use the eye icon to preview, or the pencil icon to edit.",
+    placement: "top",
+  },
+];
 
 const PAGE_SIZE = 15;
 
@@ -19,17 +47,24 @@ export default async function AdminLessonsPage({
 
   const session = await auth();
   const user = await prisma.user.findUnique({ where: { email: session!.user!.email! } });
-  if (!user || user.role !== "ADMIN") redirect("/");
+  if (!user || (user.role !== "ADMIN" && !user.canManageLessons)) redirect("/");
 
   const statusFilter =
     status && ["PUBLISHED", "DRAFT", "CANCELLED"].includes(status)
       ? { status: status as "PUBLISHED" | "DRAFT" | "CANCELLED" }
       : {};
 
+  // Managers only see lessons that belong to one of their groups
+  const managerGroupFilter =
+    user.role !== "ADMIN" && user.canManageLessons
+      ? { permissions: { some: { groupId: { in: [...(await getUserGroupIds(user.id))] } } } }
+      : {};
+
   const allLessons = await prisma.lesson.findMany({
     where: {
       ...statusFilter,
       ...(category ? { category: { slug: category } } : {}),
+      ...managerGroupFilter,
     },
     include: { category: true, permissions: { include: { group: true } } },
     orderBy: [{ category: { order: "asc" } }, { order: "asc" }],
@@ -63,12 +98,12 @@ export default async function AdminLessonsPage({
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Manage Lessons</h1>
           <p className="text-gray-500 mt-1">{allLessons.length} total · {drafts} draft{drafts !== 1 ? "s" : ""}</p>
         </div>
-        <Link href="/admin/lessons/new" className="flex-shrink-0">
+        <Link data-tour="new-lesson-btn" href="/admin/lessons/new" className="flex-shrink-0">
           <Button><Plus className="w-4 h-4 mr-2" /> New Lesson</Button>
         </Link>
       </div>
 
-      <div className="mb-6">
+      <div data-tour="admin-filter" className="mb-6">
         <LessonsFilter categories={categories} isAdmin={true} total={total} />
       </div>
 
@@ -81,7 +116,7 @@ export default async function AdminLessonsPage({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div data-tour="admin-lesson-list" className="space-y-2">
           {pageLessons.map((lesson) => (
             <Card key={lesson.id}>
               <CardContent className="py-3 flex items-center gap-4">
@@ -131,6 +166,7 @@ export default async function AdminLessonsPage({
       )}
 
       <Pagination page={safePage} totalPages={totalPages} />
+      <PageTour tourKey="wso_page_admin_lessons_v1" steps={ADMIN_LESSONS_TOUR} />
     </div>
   );
 }

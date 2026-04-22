@@ -4,7 +4,7 @@ import { uploadToSharePoint } from "@/lib/sharepoint";
 
 export const runtime = "nodejs";
 
-const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_SIZE = 100 * 1024 * 1024; // 100 MB
 
 const MIME_TO_TYPE: Record<string, string> = {
   "image/jpeg": "IMAGE",
