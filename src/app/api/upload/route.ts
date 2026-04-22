@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
-import { makeKey, presignPut } from "@/lib/r2";
+import { buildKey, presignPut, type UploadKind } from "@/lib/r2";
+import { canUserManageLesson } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -36,23 +37,28 @@ function resolveBlockType(mimeType: string, fileName: string): string | undefine
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "ADMIN" && !user.canManageLessons) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
-  const { fileName, contentType, lessonFolder } = (await req.json()) as {
+  const { fileName, contentType, lessonId, kind } = (await req.json()) as {
     fileName?: string;
     contentType?: string;
-    lessonFolder?: string;
+    lessonId?: string;
+    kind?: UploadKind;
   };
 
   if (!fileName || !contentType) return NextResponse.json({ error: "fileName and contentType required" }, { status: 400 });
+  if (!lessonId) return NextResponse.json({ error: "lessonId required" }, { status: 400 });
+  if (kind !== "attachments" && kind !== "blocks") {
+    return NextResponse.json({ error: "kind must be 'attachments' or 'blocks'" }, { status: 400 });
+  }
+
+  if (!(await canUserManageLesson(user, lessonId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const blockType = resolveBlockType(contentType, fileName);
   if (!blockType) return NextResponse.json({ error: "File type not supported. Allowed: images, video, PDF, PPT, Excel" }, { status: 400 });
 
-  const folder = `lessons/${(lessonFolder || "General").replace(/[^A-Za-z0-9._-]/g, "_")}`;
-  const key = makeKey(folder, fileName);
+  const key = buildKey({ lessonId, userId: user.id, kind, fileName });
   const { url, publicUrl } = await presignPut(key, contentType);
 
   return NextResponse.json({ uploadUrl: url, publicUrl, key, blockType });

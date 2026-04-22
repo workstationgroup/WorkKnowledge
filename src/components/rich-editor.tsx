@@ -18,10 +18,11 @@ interface RichEditorProps {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
-  lessonFolder?: string;
+  /** When present, embedded images land under lessons/<id>/editor/… — otherwise drafts/<userId>/editor/… */
+  lessonId?: string;
 }
 
-export function RichEditor({ value, onChange, placeholder, lessonFolder }: RichEditorProps) {
+export function RichEditor({ value, onChange, placeholder, lessonId }: RichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -86,7 +87,7 @@ export function RichEditor({ value, onChange, placeholder, lessonFolder }: RichE
       const signRes = await fetch("/api/upload-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, lessonId }),
       });
       if (!signRes.ok) {
         const err = await signRes.json().catch(() => ({ error: "Upload failed" }));

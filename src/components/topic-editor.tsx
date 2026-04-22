@@ -32,7 +32,6 @@ interface Topic {
 
 interface TopicEditorProps {
   lessonId: string;
-  lessonTitle: string;
 }
 
 const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
@@ -115,12 +114,12 @@ function BlockEditor({
   block,
   onChange,
   onDelete,
-  lessonFolder,
+  lessonId,
 }: {
   block: Block;
   onChange: (b: Block) => void;
   onDelete: () => void;
-  lessonFolder: string;
+  lessonId: string;
 }) {
   return (
     <div className="border border-gray-100 rounded-lg p-3 space-y-2 bg-gray-50">
@@ -137,7 +136,7 @@ function BlockEditor({
       </div>
 
       {block.type === "TEXT" ? (
-        <RichEditor value={block.content} onChange={(html) => onChange({ ...block, content: html })} placeholder="Write content..." />
+        <RichEditor value={block.content} onChange={(html) => onChange({ ...block, content: html })} placeholder="Write content..." lessonId={lessonId} />
       ) : block.type === "YOUTUBE" ? (
         <YouTubeBlockEditor block={block} onChange={onChange} />
       ) : block.content ? (
@@ -169,7 +168,8 @@ function BlockEditor({
         )
       ) : (
         <FileUploader
-          lessonFolder={lessonFolder}
+          lessonId={lessonId}
+          kind="blocks"
           accept={
             block.type === "IMAGE" ? ".jpg,.jpeg,.png,.gif,.webp" :
             block.type === "VIDEO" ? ".mp4,.mov,.webm" :
@@ -197,7 +197,7 @@ function BlockEditor({
 
 function TopicItem({
   topic,
-  lessonFolder,
+  lessonId,
   isFirst,
   isLast,
   onMove,
@@ -205,7 +205,7 @@ function TopicItem({
   onDelete,
 }: {
   topic: Topic;
-  lessonFolder: string;
+  lessonId: string;
   isFirst: boolean;
   isLast: boolean;
   onMove: (dir: "up" | "down") => void;
@@ -352,7 +352,7 @@ function TopicItem({
                       </button>
                     </div>
                   )}
-                  <BlockEditor block={block} onChange={(b) => updateBlock(i, b)} onDelete={() => deleteBlock(i)} lessonFolder={lessonFolder} />
+                  <BlockEditor block={block} onChange={(b) => updateBlock(i, b)} onDelete={() => deleteBlock(i)} lessonId={lessonId} />
                 </div>
               ))}
             </div>
@@ -380,7 +380,7 @@ function TopicItem({
   );
 }
 
-export function TopicEditor({ lessonId, lessonTitle }: TopicEditorProps) {
+export function TopicEditor({ lessonId }: TopicEditorProps) {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -416,7 +416,7 @@ export function TopicEditor({ lessonId, lessonTitle }: TopicEditorProps) {
         <TopicItem
           key={topic.id}
           topic={topic}
-          lessonFolder={lessonTitle}
+          lessonId={lessonId}
           isFirst={i === 0}
           isLast={i === topics.length - 1}
           onMove={(dir) => moveTopic(i, dir)}
