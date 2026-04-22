@@ -14,11 +14,21 @@ export const r2 = new S3Client({
   credentials: { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey! },
 });
 
-/** Random-suffixed key under a folder, e.g. "lessons/intro/1713788200-abc123.pdf". */
+/** Random-suffixed key under a folder, e.g. "lessons/abc/editor/1713788200-abc123.pdf". */
 export function makeKey(folder: string, fileName: string) {
   const safeName = fileName.replace(/[^A-Za-z0-9._-]/g, "_");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   return `${folder.replace(/\/+$/, "")}/${suffix}-${safeName}`;
+}
+
+export type UploadKind = "editor" | "blocks" | "attachments";
+
+/** Build a canonical key: lessons/<id>/<kind>/<file> or drafts/<userId>/editor/<file>. */
+export function buildKey(opts: { lessonId?: string | null; userId: string; kind: UploadKind; fileName: string }) {
+  const folder = opts.lessonId
+    ? `lessons/${opts.lessonId}/${opts.kind}`
+    : `drafts/${opts.userId}/${opts.kind}`;
+  return makeKey(folder, opts.fileName);
 }
 
 /** Generate a presigned PUT URL valid for 5 minutes. Client uploads directly to R2 with this URL. */

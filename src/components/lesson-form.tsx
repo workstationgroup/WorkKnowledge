@@ -178,7 +178,7 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
           </div>
           <div className="space-y-1.5">
             <Label>Introduction / Overview</Label>
-            <RichEditor value={content} onChange={setContent} placeholder="Write the lesson overview here..." lessonFolder={title || initial?.title} />
+            <RichEditor value={content} onChange={setContent} placeholder="Write the lesson overview here..." lessonId={initial?.id} />
           </div>
         </div>
 
@@ -257,13 +257,13 @@ export function LessonForm({ categories, groups, allLessons = [], requireGroup =
             <div>
               <h2 data-tour="lesson-topics-section" className="text-lg font-semibold text-gray-900 mb-1">Topics</h2>
               <p className="text-sm text-gray-500 mb-4">Break the lesson into topics. Each topic can contain text, images, videos, PDFs, PPT, or Excel files.</p>
-              <TopicEditor lessonId={initial.id} lessonTitle={initial.title} />
+              <TopicEditor lessonId={initial.id} />
             </div>
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-1">Attachments</h2>
               <p className="text-sm text-gray-500 mb-4">Training materials employees can download (stored in SharePoint).</p>
-              <AttachmentsEditor ref={attachmentsRef} lessonId={initial.id} lessonTitle={initial.title} />
+              <AttachmentsEditor ref={attachmentsRef} lessonId={initial.id} />
             </div>
 
             <div>

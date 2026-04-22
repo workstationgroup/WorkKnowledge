@@ -21,7 +21,6 @@ interface StagedAttachment {
 
 interface AttachmentsEditorProps {
   lessonId: string;
-  lessonTitle: string;
 }
 
 export interface AttachmentsEditorHandle {
@@ -29,7 +28,7 @@ export interface AttachmentsEditorHandle {
 }
 
 export const AttachmentsEditor = forwardRef<AttachmentsEditorHandle, AttachmentsEditorProps>(
-function AttachmentsEditor({ lessonId, lessonTitle }, ref) {
+function AttachmentsEditor({ lessonId }, ref) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [staged, setStaged] = useState<StagedAttachment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +160,7 @@ function AttachmentsEditor({ lessonId, lessonTitle }, ref) {
       )}
 
       <div className="flex items-center gap-3">
-        <FileUploader lessonFolder={lessonTitle} onUploaded={onUploaded} label="Add attachment" />
+        <FileUploader lessonId={lessonId} kind="attachments" onUploaded={onUploaded} label="Add attachment" />
         {staged.length > 0 && (
           <span className="text-xs text-amber-600 font-medium">{staged.length} unsaved — click Save to upload</span>
         )}

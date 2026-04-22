@@ -47,12 +47,12 @@ function QuestionMedia({
   mediaUrl,
   mediaType,
   onChange,
-  lessonFolder,
+  lessonId,
 }: {
   mediaUrl?: string;
   mediaType?: MediaType;
   onChange: (url: string | undefined, type: MediaType | undefined) => void;
-  lessonFolder: string;
+  lessonId: string;
 }) {
   const [ytInput, setYtInput] = useState("");
   const [mode, setMode] = useState<MediaType | null>(null);
@@ -132,7 +132,8 @@ function QuestionMedia({
   return (
     <div className="flex items-center gap-2">
       <FileUploader
-        lessonFolder={lessonFolder}
+        lessonId={lessonId}
+        kind="blocks"
         onUploaded={(f: UploadedFile) => { onChange(f.url, mode!); setMode(null); }}
         label={`Upload ${mode === "IMAGE" ? "Image" : "Video"}`}
       />
@@ -145,9 +146,11 @@ function QuestionMedia({
 function ChoiceImagePicker({
   imageUrl,
   onChange,
+  lessonId,
 }: {
   imageUrl?: string;
   onChange: (url: string | undefined) => void;
+  lessonId: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -155,12 +158,16 @@ function ChoiceImagePicker({
   const upload = async (file: File) => {
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/upload-image", { method: "POST", body: form });
-      if (!res.ok) throw new Error("Upload failed");
-      const { url } = await res.json();
-      onChange(url);
+      const signRes = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, lessonId }),
+      });
+      if (!signRes.ok) throw new Error("Upload failed");
+      const { uploadUrl, publicUrl } = await signRes.json();
+      const putRes = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!putRes.ok) throw new Error(`Storage upload failed (${putRes.status})`);
+      onChange(publicUrl);
     } catch {
       toast.error("Image upload failed");
     } finally {
@@ -258,7 +265,7 @@ function QuestionEditor({
             mediaUrl={q.mediaUrl}
             mediaType={q.mediaType}
             onChange={(url, type) => onChange({ ...q, mediaUrl: url, mediaType: type })}
-            lessonFolder={`lesson-${lessonId}`}
+            lessonId={lessonId}
           />
         </div>
         <button type="button" onClick={onDelete} className="text-gray-300 hover:text-red-400 shrink-0 mt-1">
@@ -323,7 +330,7 @@ function QuestionEditor({
                     </button>
                   </div>
                 ) : (
-                  <ChoiceImageSlot ci={ci} onImage={(url) => setChoiceImage(ci, url)} />
+                  <ChoiceImageSlot ci={ci} onImage={(url) => setChoiceImage(ci, url)} lessonId={lessonId} />
                 )}
 
                 {/* Text label */}
@@ -371,7 +378,7 @@ function QuestionEditor({
                   onChange={(e) => setChoiceText(ci, e.target.value)}
                   className={cn("flex-1 text-sm", c.isCorrect && "border-green-300 bg-green-50")}
                 />
-                <ChoiceImagePicker imageUrl={c.imageUrl} onChange={(url) => setChoiceImage(ci, url)} />
+                <ChoiceImagePicker imageUrl={c.imageUrl} onChange={(url) => setChoiceImage(ci, url)} lessonId={lessonId} />
                 {q.choices.length > 2 && (
                   <button type="button" onClick={() => removeChoice(ci)} className="text-gray-200 hover:text-red-400 shrink-0">
                     <X className="w-3.5 h-3.5" />
@@ -393,19 +400,23 @@ function QuestionEditor({
 }
 
 // Placeholder slot for image in grid mode
-function ChoiceImageSlot({ ci, onImage }: { ci: number; onImage: (url: string) => void }) {
+function ChoiceImageSlot({ ci, onImage, lessonId }: { ci: number; onImage: (url: string) => void; lessonId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
   const upload = async (file: File) => {
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/upload-image", { method: "POST", body: form });
-      if (!res.ok) throw new Error("Upload failed");
-      const { url } = await res.json();
-      onImage(url);
+      const signRes = await fetch("/api/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, lessonId }),
+      });
+      if (!signRes.ok) throw new Error("Upload failed");
+      const { uploadUrl, publicUrl } = await signRes.json();
+      const putRes = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!putRes.ok) throw new Error(`Storage upload failed (${putRes.status})`);
+      onImage(publicUrl);
     } catch {
       toast.error("Image upload failed");
     } finally {

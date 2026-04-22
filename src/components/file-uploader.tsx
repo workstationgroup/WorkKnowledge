@@ -15,7 +15,9 @@ interface FileUploaderProps {
   onUploaded: (file: UploadedFile) => void;
   accept?: string;
   label?: string;
-  lessonFolder?: string;
+  lessonId: string;
+  /** Which sub-folder under lessons/<id>/ the file lands in. */
+  kind: "attachments" | "blocks";
 }
 
 const ACCEPT_ALL = ".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.webm,.pdf,.ppt,.pptx,.xls,.xlsx";
@@ -39,7 +41,7 @@ export function formatBytes(bytes?: number | null) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function FileUploader({ onUploaded, accept, label = "Upload file", lessonFolder }: FileUploaderProps) {
+export function FileUploader({ onUploaded, accept, label = "Upload file", lessonId, kind }: FileUploaderProps) {
   const ref = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
 
@@ -55,7 +57,7 @@ export function FileUploader({ onUploaded, accept, label = "Upload file", lesson
       const signRes = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, contentType: file.type, lessonFolder }),
+        body: JSON.stringify({ fileName: file.name, contentType: file.type, lessonId, kind }),
       });
       if (!signRes.ok) {
         const err = await signRes.json().catch(() => ({ error: `Server error ${signRes.status}` }));
