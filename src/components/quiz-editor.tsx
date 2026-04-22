@@ -1,7 +1,7 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { Plus, Trash2, CheckCircle2, Image as ImageIcon, Film, PlayCircle, X } from "lucide-react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Plus, Trash2, CheckCircle2, Image as ImageIcon, Film, PlayCircle, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ type MediaType = "IMAGE" | "VIDEO" | "YOUTUBE";
 
 interface Choice {
   text: string;
+  imageUrl?: string;
   isCorrect: boolean;
 }
 
@@ -140,6 +141,71 @@ function QuestionMedia({
   );
 }
 
+// ── Inline image uploader for a choice ───────────────────────────────────────
+function ChoiceImagePicker({
+  imageUrl,
+  onChange,
+}: {
+  imageUrl?: string;
+  onChange: (url: string | undefined) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload-image", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      onChange(url);
+    } catch {
+      toast.error("Image upload failed");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  if (imageUrl) {
+    return (
+      <div className="relative shrink-0">
+        <img src={imageUrl} alt="Choice" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
+        <button
+          type="button"
+          onClick={() => onChange(undefined)}
+          className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow text-gray-400 hover:text-red-400"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".jpg,.jpeg,.png,.gif,.webp"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        title="Add image to choice"
+        className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border border-gray-200 text-gray-300 hover:border-indigo-300 hover:text-indigo-400 transition-colors disabled:opacity-50"
+      >
+        {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+      </button>
+    </>
+  );
+}
+
 // ── Single question editor ────────────────────────────────────────────────────
 function QuestionEditor({
   q,
@@ -154,15 +220,16 @@ function QuestionEditor({
   onDelete: () => void;
   lessonId: string;
 }) {
-  const setChoice = (ci: number, text: string) =>
+  const setChoiceText = (ci: number, text: string) =>
     onChange({ ...q, choices: q.choices.map((c, i) => (i === ci ? { ...c, text } : c)) });
+
+  const setChoiceImage = (ci: number, imageUrl: string | undefined) =>
+    onChange({ ...q, choices: q.choices.map((c, i) => (i === ci ? { ...c, imageUrl } : c)) });
 
   const toggleCorrect = (ci: number) => {
     if (q.allowMultiple) {
-      // toggle individual choice
       onChange({ ...q, choices: q.choices.map((c, i) => (i === ci ? { ...c, isCorrect: !c.isCorrect } : c)) });
     } else {
-      // single-select: only one correct at a time
       onChange({ ...q, choices: q.choices.map((c, i) => ({ ...c, isCorrect: i === ci })) });
     }
   };
@@ -176,6 +243,8 @@ function QuestionEditor({
     if (q.choices.length <= 2) { toast.error("Need at least 2 choices"); return; }
     onChange({ ...q, choices: q.choices.filter((_, i) => i !== ci) });
   };
+
+  const hasImages = q.choices.some((c) => c.imageUrl);
 
   return (
     <div className="border border-gray-200 rounded-xl p-4 space-y-3">
@@ -210,40 +279,162 @@ function QuestionEditor({
           </label>
         </div>
 
-        {q.choices.map((c, ci) => (
-          <div key={ci} className="flex items-center gap-2">
-            <button type="button" onClick={() => toggleCorrect(ci)}
-              className={cn(
-                "shrink-0 flex items-center justify-center transition-colors",
-                q.allowMultiple
-                  ? cn("w-5 h-5 rounded border-2", c.isCorrect ? "border-green-500 bg-green-500" : "border-gray-300 hover:border-green-400")
-                  : cn("w-5 h-5 rounded-full border-2", c.isCorrect ? "border-green-500 bg-green-500" : "border-gray-300 hover:border-green-400")
-              )}
-              title="Mark as correct"
-            >
-              {c.isCorrect && <CheckCircle2 className="w-3 h-3 text-white" />}
-            </button>
-            <Input
-              placeholder={`Choice ${ci + 1}`}
-              value={c.text}
-              onChange={(e) => setChoice(ci, e.target.value)}
-              className={cn("flex-1 text-sm", c.isCorrect && "border-green-300 bg-green-50")}
-            />
-            {q.choices.length > 2 && (
-              <button type="button" onClick={() => removeChoice(ci)} className="text-gray-200 hover:text-red-400">
-                <X className="w-3.5 h-3.5" />
+        {hasImages ? (
+          // Image grid layout
+          <div className="grid grid-cols-2 gap-2">
+            {q.choices.map((c, ci) => (
+              <div key={ci} className={cn(
+                "relative rounded-xl border-2 overflow-hidden transition-colors",
+                c.isCorrect ? "border-green-400 bg-green-50" : "border-gray-200"
+              )}>
+                {/* Correct toggle */}
+                <button
+                  type="button"
+                  onClick={() => toggleCorrect(ci)}
+                  className={cn(
+                    "absolute top-1.5 left-1.5 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                    c.isCorrect ? "border-green-500 bg-green-500" : "border-white bg-white/80 hover:border-green-400"
+                  )}
+                >
+                  {c.isCorrect && <CheckCircle2 className="w-3 h-3 text-white" />}
+                </button>
+
+                {/* Remove choice */}
+                {q.choices.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => removeChoice(ci)}
+                    className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full bg-white/80 flex items-center justify-center text-gray-300 hover:text-red-400"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+
+                {/* Image */}
+                {c.imageUrl ? (
+                  <div className="relative">
+                    <img src={c.imageUrl} alt={`Choice ${ci + 1}`} className="w-full h-32 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setChoiceImage(ci, undefined)}
+                      className="absolute bottom-1 right-1 bg-white rounded-full p-0.5 shadow text-gray-400 hover:text-red-400"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <ChoiceImageSlot ci={ci} onImage={(url) => setChoiceImage(ci, url)} />
+                )}
+
+                {/* Text label */}
+                <div className="px-2 py-1.5">
+                  <Input
+                    placeholder={`Label ${ci + 1} (optional)`}
+                    value={c.text}
+                    onChange={(e) => setChoiceText(ci, e.target.value)}
+                    className="text-xs h-7 border-0 bg-transparent px-0 focus-visible:ring-0 shadow-none"
+                  />
+                </div>
+              </div>
+            ))}
+
+            {q.choices.length < 8 && (
+              <button
+                type="button"
+                onClick={addChoice}
+                className="h-full min-h-[120px] rounded-xl border-2 border-dashed border-gray-200 text-gray-300 hover:border-indigo-300 hover:text-indigo-400 flex flex-col items-center justify-center gap-1 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-xs">Add choice</span>
               </button>
             )}
           </div>
-        ))}
+        ) : (
+          // Text list layout
+          <>
+            {q.choices.map((c, ci) => (
+              <div key={ci} className="flex items-center gap-2">
+                <button type="button" onClick={() => toggleCorrect(ci)}
+                  className={cn(
+                    "shrink-0 flex items-center justify-center transition-colors",
+                    q.allowMultiple
+                      ? cn("w-5 h-5 rounded border-2", c.isCorrect ? "border-green-500 bg-green-500" : "border-gray-300 hover:border-green-400")
+                      : cn("w-5 h-5 rounded-full border-2", c.isCorrect ? "border-green-500 bg-green-500" : "border-gray-300 hover:border-green-400")
+                  )}
+                  title="Mark as correct"
+                >
+                  {c.isCorrect && <CheckCircle2 className="w-3 h-3 text-white" />}
+                </button>
+                <Input
+                  placeholder={`Choice ${ci + 1}`}
+                  value={c.text}
+                  onChange={(e) => setChoiceText(ci, e.target.value)}
+                  className={cn("flex-1 text-sm", c.isCorrect && "border-green-300 bg-green-50")}
+                />
+                <ChoiceImagePicker imageUrl={c.imageUrl} onChange={(url) => setChoiceImage(ci, url)} />
+                {q.choices.length > 2 && (
+                  <button type="button" onClick={() => removeChoice(ci)} className="text-gray-200 hover:text-red-400 shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
 
-        {q.choices.length < 8 && (
-          <button type="button" onClick={addChoice} className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 mt-1">
-            <Plus className="w-3 h-3" /> Add choice
-          </button>
+            {q.choices.length < 8 && (
+              <button type="button" onClick={addChoice} className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 mt-1">
+                <Plus className="w-3 h-3" /> Add choice
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+// Placeholder slot for image in grid mode
+function ChoiceImageSlot({ ci, onImage }: { ci: number; onImage: (url: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload-image", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      onImage(url);
+    } catch {
+      toast.error("Image upload failed");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".jpg,.jpeg,.png,.gif,.webp"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="w-full h-32 flex flex-col items-center justify-center gap-1 text-gray-300 hover:text-indigo-400 transition-colors"
+      >
+        {uploading
+          ? <Loader2 className="w-5 h-5 animate-spin" />
+          : <><ImageIcon className="w-5 h-5" /><span className="text-xs">Click to upload</span></>
+        }
+      </button>
+    </>
   );
 }
 
@@ -266,7 +457,6 @@ export const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(function
           setHasQuiz(true);
           setPassScore(data.passScore);
           setQuestions(data.questions.map((q: Question & { choices: Choice[] }) => {
-            // Pad saved choices back to 5 so the editor always shows 5 rows
             const choices = [...q.choices];
             while (choices.length < 4) choices.push(newChoice());
             return {
@@ -289,9 +479,11 @@ export const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(function
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.text.trim()) { toast.error(`Question ${i + 1}: question text required`); return false; }
-      const filled = q.choices.filter((c) => c.text.trim());
+      const filled = q.choices.filter((c) => c.text.trim() || c.imageUrl);
       if (filled.length < 2) { toast.error(`Question ${i + 1}: at least 2 choices required`); return false; }
-      if (!q.choices.some((c) => c.isCorrect && c.text.trim())) { toast.error(`Question ${i + 1}: mark at least one correct answer`); return false; }
+      if (!q.choices.some((c) => c.isCorrect && (c.text.trim() || c.imageUrl))) {
+        toast.error(`Question ${i + 1}: mark at least one correct answer`); return false;
+      }
     }
     setSaving(true);
     try {
@@ -305,7 +497,11 @@ export const QuizEditor = forwardRef<QuizEditorHandle, QuizEditorProps>(function
             allowMultiple: q.allowMultiple,
             mediaUrl: q.mediaUrl ?? null,
             mediaType: q.mediaType ?? null,
-            choices: q.choices.filter((c) => c.text.trim()),
+            choices: q.choices.filter((c) => c.text.trim() || c.imageUrl).map((c) => ({
+              text: c.text,
+              imageUrl: c.imageUrl ?? null,
+              isCorrect: c.isCorrect,
+            })),
           })),
         }),
       });

@@ -8,7 +8,7 @@ type QuestionInput = {
   allowMultiple?: boolean;
   mediaUrl?: string | null;
   mediaType?: string | null;
-  choices: { text: string; isCorrect: boolean }[];
+  choices: { text: string; imageUrl?: string | null; isCorrect: boolean }[];
 };
 
 // GET — fetch quiz for a lesson (employees see questions without isCorrect)
@@ -64,6 +64,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       choices: {
         create: q.choices.map((c, j) => ({
           text: c.text,
+          imageUrl: c.imageUrl ?? null,
           isCorrect: c.isCorrect,
           order: j,
         })),

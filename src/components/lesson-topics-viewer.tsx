@@ -16,6 +16,8 @@ interface Block {
   caption?: string | null;
   fileName?: string | null;
   fileSize?: number | null;
+  driveId?: string | null;
+  itemId?: string | null;
   order: number;
 }
 
@@ -42,6 +44,14 @@ interface LessonTopicsViewerProps {
   userId: string;
 }
 
+function proxyUrl(block: Block): string {
+  if (block.driveId && block.itemId) {
+    return `/api/sharepoint-proxy?driveId=${encodeURIComponent(block.driveId)}&itemId=${encodeURIComponent(block.itemId)}`;
+  }
+  return `/api/sharepoint-proxy?url=${encodeURIComponent(block.content)}`;
+}
+
+
 function BlockRenderer({ block }: { block: Block }) {
   switch (block.type) {
     case "TEXT":
@@ -54,29 +64,35 @@ function BlockRenderer({ block }: { block: Block }) {
     case "IMAGE":
       return (
         <figure>
-          <img src={block.content} alt={block.caption ?? block.fileName ?? "Image"} className="rounded-lg max-w-full border border-gray-100" />
+          <img
+            src={proxyUrl(block)}
+            alt={block.caption ?? block.fileName ?? "Image"}
+            className="rounded-lg max-w-full w-full border border-gray-100"
+          />
           {block.caption && <figcaption className="text-xs text-gray-400 mt-1.5 text-center">{block.caption}</figcaption>}
         </figure>
       );
     case "VIDEO":
       return (
         <figure>
-          <video controls src={block.content} className="rounded-lg max-w-full w-full border border-gray-100">
+          <video controls src={proxyUrl(block)} className="rounded-lg max-w-full w-full border border-gray-100">
             Your browser does not support video.
           </video>
           {block.caption && <figcaption className="text-xs text-gray-400 mt-1.5">{block.caption}</figcaption>}
         </figure>
       );
-    case "PDF":
+    case "PDF": {
+      const pUrl = proxyUrl(block);
       return (
         <div className="space-y-2">
-          <iframe src={block.content} className="w-full rounded-lg border border-gray-200" style={{ height: "500px" }} />
+          <iframe src={pUrl} className="w-full rounded-lg border border-gray-200" style={{ height: "500px" }} />
           {block.caption && <p className="text-xs text-gray-400">{block.caption}</p>}
-          <a href={block.content} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
+          <a href={pUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:underline">
             <Download className="w-3.5 h-3.5" /> Download PDF
           </a>
         </div>
       );
+    }
     case "PPT":
     case "EXCEL":
       return (
@@ -86,7 +102,7 @@ function BlockRenderer({ block }: { block: Block }) {
             <p className="text-sm font-medium text-gray-700 truncate">{block.fileName ?? (block.type === "PPT" ? "Presentation" : "Spreadsheet")}</p>
             {block.caption && <p className="text-xs text-gray-400">{block.caption}</p>}
           </div>
-          <a href={block.content} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-indigo-600 hover:underline shrink-0">
+          <a href={proxyUrl(block)} download={block.fileName ?? undefined} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-sm text-indigo-600 hover:underline shrink-0">
             <Download className="w-3.5 h-3.5" /> Download
           </a>
         </div>
@@ -237,11 +253,9 @@ export function LessonTopicsViewer({ topics, attachments, userId }: LessonTopics
             {attachments.map((a) => (
               <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
                 {fileIcon(a.type)}
-                <a href={a.url} target="_blank" rel="noreferrer" className="flex-1 text-sm text-gray-700 hover:text-indigo-600 hover:underline truncate">
-                  {a.fileName}
-                </a>
+                <span className="flex-1 text-sm text-gray-700 truncate">{a.fileName}</span>
                 {a.fileSize && <span className="text-xs text-gray-400">{formatBytes(a.fileSize)}</span>}
-                <a href={a.url} target="_blank" rel="noreferrer" className="shrink-0">
+                <a href={`/api/sharepoint-proxy?url=${encodeURIComponent(a.url)}`} download={a.fileName} target="_blank" rel="noreferrer" className="shrink-0">
                   <Download className="w-4 h-4 text-gray-400 hover:text-indigo-600" />
                 </a>
               </div>

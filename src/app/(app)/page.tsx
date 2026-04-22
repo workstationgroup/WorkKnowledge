@@ -5,6 +5,33 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const DASHBOARD_TOUR: PageTourStep[] = [
+  {
+    title: "Dashboard Overview",
+    description: "This is your home screen. Here you can see your overall learning progress and jump into any lesson quickly.",
+    placement: "center",
+  },
+  {
+    target: "stat-cards",
+    title: "Your Progress at a Glance",
+    description: "These cards show how many lessons are available to you, how many you've completed, and your overall completion percentage.",
+    placement: "bottom",
+  },
+  {
+    target: "categories",
+    title: "Browse by Category",
+    description: "Lessons are organised into categories. Click any category to jump straight to those lessons in the library.",
+    placement: "bottom",
+  },
+  {
+    target: "recent-lessons",
+    title: "Recent Lessons",
+    description: "A quick shortcut to recently added lessons. Click any card to start reading.",
+    placement: "top",
+  },
+];
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -42,7 +69,7 @@ export default async function DashboardPage() {
         <p className="text-gray-500 mt-1">Continue learning and growing with Work Station Office</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 md:mb-8">
+      <div data-tour="stat-cards" className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 md:mb-8">
         <Card><CardContent className="pt-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -72,7 +99,7 @@ export default async function DashboardPage() {
         </CardContent></Card>
       </div>
 
-      <div className="mb-6 md:mb-8">
+      <div data-tour="categories" className="mb-6 md:mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Browse by Category</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {categories.map((cat) => {
@@ -94,7 +121,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="mb-4">
+      <div data-tour="recent-lessons" className="mb-4">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Lessons</h2>
         <div className="space-y-3">
           {recentLessons.length === 0 && <p className="text-gray-500 text-sm">No lessons available yet.</p>}
@@ -123,6 +150,7 @@ export default async function DashboardPage() {
           })}
         </div>
       </div>
+      <PageTour tourKey="wso_page_dashboard_v1" steps={DASHBOARD_TOUR} />
     </div>
   );
 }

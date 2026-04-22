@@ -8,6 +8,27 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const SETTINGS_TOUR: PageTourStep[] = [
+  {
+    title: "Settings",
+    description: "Configure the integrations that power WSO Knowledge — SharePoint for file storage and LINE for push notifications.",
+    placement: "center",
+  },
+  {
+    target: "sharepoint-card",
+    title: "SharePoint Integration",
+    description: "Connect your Microsoft 365 SharePoint site. Files attached to lessons are stored in the folder you choose here.",
+    placement: "bottom",
+  },
+  {
+    target: "line-settings-card",
+    title: "LINE Messaging",
+    description: "Connect a LINE Messaging API channel to send push notifications to employees about new lessons and training updates.",
+    placement: "top",
+  },
+];
 
 type TestStatus = "idle" | "testing" | "ok" | "fail";
 
@@ -612,7 +633,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ── SharePoint ── */}
-      <Card>
+      <Card data-tour="sharepoint-card">
         <CardContent className="pt-6 space-y-6">
           <div className="flex items-start justify-between">
             <div>
@@ -690,7 +711,7 @@ export default function SettingsPage() {
       </Card>
 
       {/* ── LINE Messaging ── */}
-      <Card>
+      <Card data-tour="line-settings-card">
         <CardContent className="pt-6 space-y-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2.5">
@@ -698,9 +719,9 @@ export default function SettingsPage() {
                 <MessageCircle className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h2 className="text-base font-semibold text-gray-900">LINE Messaging</h2>
+                <h2 className="text-base font-semibold text-gray-900">LINE Integration</h2>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  Send push notifications to users via LINE.
+                  Let users connect their LINE account and receive push notifications.
                 </p>
               </div>
             </div>
@@ -714,83 +735,113 @@ export default function SettingsPage() {
             </a>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Channel ID</Label>
-              <Input
-                value={lineChannelId}
-                onChange={(e) => setLineChannelId(e.target.value)}
-                placeholder="e.g. 2006123456"
-                disabled={loading}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-gray-400">Found in LINE Developers Console → Basic settings</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Callback URL</Label>
-              <Input
-                value={lineCallbackUrl}
-                onChange={(e) => setLineCallbackUrl(e.target.value)}
-                placeholder="https://yourdomain.com/api/auth/line/callback"
-                disabled={loading}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-gray-400">Must match the URL registered in LINE Console</p>
+          {/* Setup guide */}
+          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 space-y-3 text-sm">
+            <p className="font-semibold text-blue-900">Two LINE channels required</p>
+            <div className="space-y-2 text-blue-800">
+              <div className="flex gap-2">
+                <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center">1</span>
+                <div>
+                  <p className="font-medium">LINE Login channel</p>
+                  <p className="text-xs text-blue-600 mt-0.5">Lets users authenticate with LINE on their profile page (OAuth). Provides <strong>Channel ID</strong>, <strong>Channel Secret</strong>, and the <strong>Callback URL</strong> registration.</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-blue-200 text-blue-800 text-xs font-bold flex items-center justify-center">2</span>
+                <div>
+                  <p className="font-medium">Messaging API channel</p>
+                  <p className="text-xs text-blue-600 mt-0.5">Lets the server send push notifications to users. Provides the <strong>Channel Access Token</strong>.</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-green-200 text-green-800 text-xs font-bold flex items-center justify-center">✓</span>
+                <div>
+                  <p className="font-medium text-green-800">Link both channels</p>
+                  <p className="text-xs text-blue-600 mt-0.5">In LINE Developers Console → your <strong>LINE Login</strong> channel → <strong>Linked LINE Official Account</strong> → link your Messaging API channel. This makes the user ID from login work for sending messages.</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Channel Secret</Label>
-            <SecretInput
-              value={lineChannelSecret}
-              onChange={(v) => { setLineChannelSecret(v); setLineTestStatus("idle"); }}
-              placeholder="32-character hex string"
-              disabled={loading}
-            />
-            <p className="text-xs text-gray-400">LINE Developers Console → Basic settings → Channel secret</p>
+          {/* LINE Login fields */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">LINE Login channel</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Channel ID</Label>
+                <Input
+                  value={lineChannelId}
+                  onChange={(e) => setLineChannelId(e.target.value)}
+                  placeholder="e.g. 2006123456"
+                  disabled={loading}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-gray-400">Basic settings → Channel ID</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Callback URL</Label>
+                <Input
+                  value={lineCallbackUrl}
+                  onChange={(e) => setLineCallbackUrl(e.target.value)}
+                  placeholder="https://yourdomain.com/api/auth/line/callback"
+                  disabled={loading}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-gray-400">Must be registered under LINE Login → Callback URL</p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-1.5">
+              <Label>Channel Secret</Label>
+              <SecretInput
+                value={lineChannelSecret}
+                onChange={(v) => { setLineChannelSecret(v); setLineTestStatus("idle"); }}
+                placeholder="32-character hex string"
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-400">Basic settings → Channel secret</p>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Channel Access Token</Label>
-            <SecretInput
-              value={lineAccessToken}
-              onChange={(v) => { setLineAccessToken(v); setLineTestStatus("idle"); }}
-              placeholder="Long-lived channel access token"
-              disabled={loading}
-            />
-            <p className="text-xs text-gray-400">
-              LINE Developers Console → Messaging API → Channel access token (long-lived)
-            </p>
+          {/* Messaging API fields */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Messaging API channel</p>
+            <div className="space-y-1.5">
+              <Label>Channel Access Token</Label>
+              <SecretInput
+                value={lineAccessToken}
+                onChange={(v) => { setLineAccessToken(v); setLineTestStatus("idle"); }}
+                placeholder="Long-lived channel access token"
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-400">
+                Messaging API → Channel access token (long-lived) → Issue
+              </p>
+            </div>
           </div>
 
           <StatusBanner status={lineTestStatus} message={lineTestMessage} />
 
-          <div className="pt-2 border-t border-gray-100">
-            <p className="text-xs text-gray-400 mb-4">
-              <strong className="text-gray-600">Required scopes:</strong> Enable the{" "}
-              <code className="bg-gray-100 px-1 rounded">Messaging API</code> channel type and add{" "}
-              <code className="bg-gray-100 px-1 rounded">profile</code> scope under LINE Login.
-            </p>
-            <div className="flex items-center gap-3">
-              <Button onClick={saveLine} disabled={lineSaving || loading}>
-                {lineSaved ? (
-                  <><CheckCircle2 className="w-4 h-4 mr-1.5 text-green-400" />Saved</>
-                ) : lineSaving ? "Saving..." : (
-                  <><Save className="w-4 h-4 mr-1.5" />Save</>
-                )}
-              </Button>
-              <Button variant="outline" onClick={testLine} disabled={lineTestStatus === "testing" || loading}>
-                {lineTestStatus === "testing" ? (
-                  <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Testing...</>
-                ) : (
-                  <><Wifi className="w-4 h-4 mr-1.5" />Test Connection</>
-                )}
-              </Button>
-            </div>
+          <div className="pt-2 border-t border-gray-100 flex items-center gap-3">
+            <Button onClick={saveLine} disabled={lineSaving || loading}>
+              {lineSaved ? (
+                <><CheckCircle2 className="w-4 h-4 mr-1.5 text-green-400" />Saved</>
+              ) : lineSaving ? "Saving..." : (
+                <><Save className="w-4 h-4 mr-1.5" />Save</>
+              )}
+            </Button>
+            <Button variant="outline" onClick={testLine} disabled={lineTestStatus === "testing" || loading}>
+              {lineTestStatus === "testing" ? (
+                <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Testing...</>
+              ) : (
+                <><Wifi className="w-4 h-4 mr-1.5" />Test Connection</>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
+      <PageTour tourKey="wso_page_settings_v1" steps={SETTINGS_TOUR} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { recordChange } from "@/lib/changelog";
+import { getUserGroupIds, lessonInUserGroups } from "@/lib/permissions";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,13 +15,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   });
   if (!lesson) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (user.role !== "ADMIN" && lesson.status !== "PUBLISHED")
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (user.role !== "ADMIN") {
+    const userGroupIds = await getUserGroupIds(user.id);
+    const isManager = user.canManageLessons && lessonInUserGroups(lesson.permissions, userGroupIds);
 
-  if (user.role !== "ADMIN" && lesson.permissions.length > 0) {
-    const userGroups = await prisma.groupMember.findMany({ where: { userId: user.id }, select: { groupId: true } });
-    const groupIds = new Set(userGroups.map((m) => m.groupId));
-    if (!lesson.permissions.some((p) => groupIds.has(p.groupId)))
+    // Non-managers can only see published lessons
+    if (!isManager && lesson.status !== "PUBLISHED")
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    // Group-restricted lesson: user or manager must be in a permitted group
+    if (lesson.permissions.length > 0 && !lessonInUserGroups(lesson.permissions, userGroupIds))
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -30,16 +34,29 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { title, slug, content, summary, categoryId, status, readMinutes, groupIds } = await req.json();
 
-  // Fetch current state to diff
+  // Fetch current state to diff and check access
   const before = await prisma.lesson.findUnique({
     where: { id },
     include: { permissions: true },
   });
   if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (user.role !== "ADMIN") {
+    if (!user.canManageLessons) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const userGroupIds = await getUserGroupIds(user.id);
+    if (!lessonInUserGroups(before.permissions, userGroupIds))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Validate submitted groupIds are only from the manager's groups
+    if (!groupIds?.length)
+      return NextResponse.json({ error: "You must assign at least one group" }, { status: 403 });
+    const invalid = (groupIds as string[]).filter((gid: string) => !userGroupIds.has(gid));
+    if (invalid.length > 0)
+      return NextResponse.json({ error: "You can only assign groups you belong to" }, { status: 403 });
+  }
 
   await prisma.lessonPermission.deleteMany({ where: { lessonId: id } });
 
@@ -103,7 +120,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await getSessionUser();
-  if (!user || user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (user.role !== "ADMIN") {
+    if (!user.canManageLessons) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const lesson = await prisma.lesson.findUnique({ where: { id }, include: { permissions: true } });
+    if (!lesson) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const userGroupIds = await getUserGroupIds(user.id);
+    if (!lessonInUserGroups(lesson.permissions, userGroupIds))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   await prisma.lesson.delete({ where: { id } });
   return NextResponse.json({ success: true });

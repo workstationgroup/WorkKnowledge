@@ -18,6 +18,7 @@ export default async function ProfilePage({
       name: true,
       email: true,
       role: true,
+      avatarUrl: true,
       lineUserId: true,
       lineDisplayName: true,
       notifyEmail: true,

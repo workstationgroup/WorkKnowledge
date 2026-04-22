@@ -9,6 +9,27 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import Link from "next/link";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const POSITION_TEMPLATE_TOUR: PageTourStep[] = [
+  {
+    title: "Edit Position Template",
+    description: "Here you define which lessons are required for this job position and in what order they should be completed.",
+    placement: "center",
+  },
+  {
+    target: "available-lessons",
+    title: "Available Lessons",
+    description: "All published lessons appear here. Search by name, then click a lesson to add it to this position's training path.",
+    placement: "right",
+  },
+  {
+    target: "training-path",
+    title: "Training Path",
+    description: "Lessons added to the path appear here in order. Drag to reorder. Click Save Template when done.",
+    placement: "left",
+  },
+];
 
 interface Lesson {
   id: string;
@@ -100,7 +121,7 @@ export default function PositionTemplatePage({ params }: { params: Promise<{ id:
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Available lessons */}
-        <Card>
+        <Card data-tour="available-lessons">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Available Lessons</CardTitle>
             <div className="relative">
@@ -138,7 +159,7 @@ export default function PositionTemplatePage({ params }: { params: Promise<{ id:
         </Card>
 
         {/* Right: Selected lessons */}
-        <Card>
+        <Card data-tour="training-path">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center justify-between">
               <span>Training Path</span>
@@ -180,6 +201,7 @@ export default function PositionTemplatePage({ params }: { params: Promise<{ id:
           </CardContent>
         </Card>
       </div>
+      <PageTour tourKey="wso_page_position_template_v1" steps={POSITION_TEMPLATE_TOUR} />
     </div>
   );
 }

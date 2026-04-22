@@ -8,6 +8,9 @@ type BlockInput = {
   content: string;
   caption?: string | null;
   fileName?: string | null;
+  fileSize?: number | null;
+  driveId?: string | null;
+  itemId?: string | null;
 };
 
 function pickBlockFields(b: BlockInput, i: number) {
@@ -16,6 +19,9 @@ function pickBlockFields(b: BlockInput, i: number) {
     content: b.content,
     caption: b.caption ?? null,
     fileName: b.fileName ?? null,
+    fileSize: b.fileSize ?? null,
+    driveId: b.driveId ?? null,
+    itemId: b.itemId ?? null,
     order: i,
   };
 }

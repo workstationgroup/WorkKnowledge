@@ -11,6 +11,7 @@ type MediaType = "IMAGE" | "VIDEO" | "YOUTUBE";
 interface Choice {
   id: string;
   text: string;
+  imageUrl?: string | null;
 }
 
 interface Question {
@@ -77,7 +78,6 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
   const [loading, setLoading] = useState(true);
   const [lastAttemptScore, setLastAttemptScore] = useState<number | null>(null);
 
-  // answers: string for single-choice, string[] for multiple-choice
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<AttemptResult | null>(null);
@@ -95,7 +95,6 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
     }).catch(() => setLoading(false));
   }, [lessonId]);
 
-  // Shuffle choices once per quiz load
   const shuffledQuestions = useMemo(() => {
     if (!quiz) return [];
     return quiz.questions.map((q) => ({ ...q, choices: shuffle(q.choices) }));
@@ -175,6 +174,7 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
             const qr = result.result[q.id];
             const chosenRaw = answers[q.id];
             const chosen: string[] = Array.isArray(chosenRaw) ? chosenRaw : chosenRaw ? [chosenRaw] : [];
+            const hasImages = q.choices.some((c) => c.imageUrl);
 
             return (
               <div key={q.id} className={cn("rounded-lg p-3 border", qr?.correct ? "border-green-200 bg-green-50/50" : "border-red-200 bg-red-50/50")}>
@@ -190,22 +190,50 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
                   </div>
                 </div>
                 <QuestionMedia mediaUrl={q.mediaUrl} mediaType={q.mediaType} />
-                <div className="pl-6 space-y-1">
-                  {q.choices.map((c) => {
-                    const isChosen = chosen.includes(c.id);
-                    const isCorrect = qr?.correctChoiceIds.includes(c.id);
-                    return (
-                      <div key={c.id} className={cn(
-                        "text-xs px-2.5 py-1.5 rounded",
-                        isCorrect ? "bg-green-100 text-green-800 font-medium" :
-                        isChosen && !isCorrect ? "bg-red-100 text-red-700 line-through" :
-                        "text-gray-500"
-                      )}>
-                        {isCorrect ? "✓ " : isChosen && !isCorrect ? "✗ " : ""}{c.text}
-                      </div>
-                    );
-                  })}
-                </div>
+
+                {hasImages ? (
+                  <div className="pl-6 grid grid-cols-2 gap-2">
+                    {q.choices.map((c) => {
+                      const isChosen = chosen.includes(c.id);
+                      const isCorrect = qr?.correctChoiceIds.includes(c.id);
+                      return (
+                        <div key={c.id} className={cn(
+                          "rounded-lg overflow-hidden border-2 text-xs",
+                          isCorrect ? "border-green-400" : isChosen && !isCorrect ? "border-red-300" : "border-gray-200"
+                        )}>
+                          {c.imageUrl && (
+                            <img src={c.imageUrl} alt={c.text || `Choice`} className="w-full h-20 object-cover" />
+                          )}
+                          <div className={cn(
+                            "px-2 py-1 font-medium",
+                            isCorrect ? "bg-green-100 text-green-800" :
+                            isChosen && !isCorrect ? "bg-red-100 text-red-700 line-through" :
+                            "text-gray-500"
+                          )}>
+                            {isCorrect ? "✓ " : isChosen && !isCorrect ? "✗ " : ""}{c.text || "—"}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="pl-6 space-y-1">
+                    {q.choices.map((c) => {
+                      const isChosen = chosen.includes(c.id);
+                      const isCorrect = qr?.correctChoiceIds.includes(c.id);
+                      return (
+                        <div key={c.id} className={cn(
+                          "text-xs px-2.5 py-1.5 rounded",
+                          isCorrect ? "bg-green-100 text-green-800 font-medium" :
+                          isChosen && !isCorrect ? "bg-red-100 text-red-700 line-through" :
+                          "text-gray-500"
+                        )}>
+                          {isCorrect ? "✓ " : isChosen && !isCorrect ? "✗ " : ""}{c.text}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -254,6 +282,8 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
             ? ((answers[q.id] as string[] | undefined) ?? [])
             : answers[q.id] ? [answers[q.id] as string] : [];
 
+          const hasImages = q.choices.some((c) => c.imageUrl);
+
           return (
             <div key={q.id}>
               <p className="text-sm font-medium text-gray-800 mb-1">
@@ -263,38 +293,78 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
                 <p className="text-xs text-gray-400 mb-2">Select all that apply</p>
               )}
               <QuestionMedia mediaUrl={q.mediaUrl} mediaType={q.mediaType} />
-              <div className="space-y-2">
-                {q.choices.map((c) => {
-                  const selected = chosen.includes(c.id);
-                  return (
-                    <label key={c.id} className={cn(
-                      "flex items-center gap-3 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors select-none",
-                      selected
-                        ? "border-indigo-400 bg-indigo-50 text-indigo-800"
-                        : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50"
-                    )}>
-                      {isMultiple ? (
-                        <input
-                          type="checkbox"
-                          checked={selected}
-                          onChange={() => toggleMultiple(q.id, c.id)}
-                          className="rounded border-gray-300 accent-indigo-600"
-                        />
-                      ) : (
-                        <input
-                          type="radio"
-                          name={q.id}
-                          value={c.id}
-                          checked={selected}
-                          onChange={() => setAnswers((prev) => ({ ...prev, [q.id]: c.id }))}
-                          className="accent-indigo-600"
-                        />
-                      )}
-                      <span className="text-sm">{c.text}</span>
-                    </label>
-                  );
-                })}
-              </div>
+
+              {hasImages ? (
+                // Image grid choices
+                <div className="grid grid-cols-2 gap-3">
+                  {q.choices.map((c) => {
+                    const selected = chosen.includes(c.id);
+                    const toggle = isMultiple
+                      ? () => toggleMultiple(q.id, c.id)
+                      : () => setAnswers((prev) => ({ ...prev, [q.id]: c.id }));
+
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={toggle}
+                        className={cn(
+                          "rounded-xl border-2 overflow-hidden text-left transition-all",
+                          selected
+                            ? "border-indigo-500 ring-2 ring-indigo-200"
+                            : "border-gray-200 hover:border-indigo-300"
+                        )}
+                      >
+                        {c.imageUrl && (
+                          <img src={c.imageUrl} alt={c.text || `Choice`} className="w-full h-32 object-cover" />
+                        )}
+                        {c.text && (
+                          <div className={cn(
+                            "px-3 py-2 text-sm font-medium",
+                            selected ? "bg-indigo-50 text-indigo-800" : "bg-white text-gray-700"
+                          )}>
+                            {c.text}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Text list choices
+                <div className="space-y-2">
+                  {q.choices.map((c) => {
+                    const selected = chosen.includes(c.id);
+                    return (
+                      <label key={c.id} className={cn(
+                        "flex items-center gap-3 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors select-none",
+                        selected
+                          ? "border-indigo-400 bg-indigo-50 text-indigo-800"
+                          : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50"
+                      )}>
+                        {isMultiple ? (
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleMultiple(q.id, c.id)}
+                            className="rounded border-gray-300 accent-indigo-600"
+                          />
+                        ) : (
+                          <input
+                            type="radio"
+                            name={q.id}
+                            value={c.id}
+                            checked={selected}
+                            onChange={() => setAnswers((prev) => ({ ...prev, [q.id]: c.id }))}
+                            className="accent-indigo-600"
+                          />
+                        )}
+                        <span className="text-sm">{c.text}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

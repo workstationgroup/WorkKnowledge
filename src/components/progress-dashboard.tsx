@@ -1,14 +1,41 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   Users, BookOpen, Clock, CheckCircle2, Trophy, TrendingUp, ChevronRight,
+  Search, X,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import Link from "next/link";
+import { PageTour, type PageTourStep } from "@/components/page-tour";
+
+const PROGRESS_TOUR: PageTourStep[] = [
+  {
+    title: "Progress Dashboard",
+    description: "Track how each employee is progressing through their training. Filter by group or individual to drill down.",
+    placement: "center",
+  },
+  {
+    target: "progress-filters",
+    title: "Filter by Team or Person",
+    description: "Click a group pill to see only that team's progress. Use the dropdown on the right to focus on a single employee.",
+    placement: "bottom",
+  },
+  {
+    target: "progress-stats",
+    title: "Summary Stats",
+    description: "At-a-glance numbers: total employees, lessons available, completions, and average progress across the selected group.",
+    placement: "bottom",
+  },
+  {
+    target: "progress-table",
+    title: "Employee Progress Table",
+    description: "Each row shows an employee's overall completion rate. Click a name to open the detailed view for that person.",
+    placement: "top",
+  },
+];
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -81,6 +108,9 @@ export function ProgressDashboard({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeLessonId, setActiveLessonId] = useState("");
+
   const setFilter = useCallback(
     (key: string, value: string) => {
       const p = new URLSearchParams(searchParams.toString());
@@ -104,13 +134,23 @@ export function ProgressDashboard({
     if ((bestScore.get(key) ?? -1) < a.score) bestScore.set(key, a.score);
   }
 
-  // Summary stats
-  const totalUsers = users.length;
+  // Apply client-side filters (search + lesson)
+  const visibleUsers = users.filter((u) => {
+    if (searchQuery && !u.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (activeLessonId) {
+      const row = progMap.get(`${u.id}:${activeLessonId}`);
+      if (!row || (!row.completedAt && row.timeSpentSeconds === 0)) return false;
+    }
+    return true;
+  });
+
+  // Summary stats (based on visibleUsers)
+  const totalUsers = visibleUsers.length;
   const totalLessons = lessons.length;
-  const totalCompleted = progress.filter((p) => p.completedAt).length;
-  const totalSeconds = progress.reduce((s, p) => s + p.timeSpentSeconds, 0);
+  const totalCompleted = progress.filter((p) => visibleUsers.some((u) => u.id === p.userId) && p.completedAt).length;
+  const totalSeconds = progress.filter((p) => visibleUsers.some((u) => u.id === p.userId)).reduce((s, p) => s + p.timeSpentSeconds, 0);
   const avgPct = totalUsers === 0 ? 0 : Math.round(
-    users.reduce((sum, u) => {
+    visibleUsers.reduce((sum, u) => {
       const done = lessons.filter((l) => progMap.get(`${u.id}:${l.id}`)?.completedAt).length;
       return sum + pct(done, totalLessons);
     }, 0) / totalUsers
@@ -118,6 +158,14 @@ export function ProgressDashboard({
 
   // Single-user view
   const focusUser = activeUserId ? users.find((u) => u.id === activeUserId) : null;
+
+  // Group lessons by category for the dropdown
+  const lessonsByCategory = new Map<string, { label: string; items: Lesson[] }>();
+  for (const l of lessons) {
+    const cat = lessonsByCategory.get(l.category.id) ?? { label: l.category.name, items: [] };
+    cat.items.push(l);
+    lessonsByCategory.set(l.category.id, cat);
+  }
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-6xl mx-auto">
@@ -128,46 +176,84 @@ export function ProgressDashboard({
       </div>
 
       {/* ── Filters ── */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {/* Group filter */}
-        <button
-          onClick={() => setFilter("group", "")}
-          className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-            !activeGroupId ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
-          }`}
-        >
-          All teams
-        </button>
-        {groups.map((g) => (
-          <button
-            key={g.id}
-            onClick={() => setFilter("group", g.id)}
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-              activeGroupId === g.id ? "text-white border-transparent" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
-            }`}
-            style={activeGroupId === g.id ? { backgroundColor: g.color, borderColor: g.color } : {}}
-          >
-            {g.name}
-          </button>
-        ))}
+      <div data-tour="progress-filters" className="space-y-3 mb-6">
+        {/* Search + dropdowns row */}
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[160px] max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name…"
+              className="w-full h-8 pl-8 pr-7 rounded-full border border-gray-200 bg-white text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-        {/* Person filter */}
-        {totalUsers > 1 && (
+          {/* Course filter */}
           <select
-            value={activeUserId}
-            onChange={(e) => setFilter("user", e.target.value)}
-            className="ml-auto h-8 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+            value={activeLessonId}
+            onChange={(e) => setActiveLessonId(e.target.value)}
+            className="h-8 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
           >
-            <option value="">All employees ({totalUsers})</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>{u.name}</option>
+            <option value="">All courses</option>
+            {[...lessonsByCategory.values()].map((cat) => (
+              <optgroup key={cat.label} label={cat.label}>
+                {cat.items.map((l) => (
+                  <option key={l.id} value={l.id}>{l.title}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
-        )}
+
+          {/* Person filter */}
+          {users.length > 1 && (
+            <select
+              value={activeUserId}
+              onChange={(e) => setFilter("user", e.target.value)}
+              className="h-8 rounded-full border border-gray-200 bg-white px-3 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+            >
+              <option value="">All employees ({users.length})</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Group pills */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilter("group", "")}
+            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+              !activeGroupId ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+            }`}
+          >
+            All teams
+          </button>
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setFilter("group", g.id)}
+              className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                activeGroupId === g.id ? "text-white border-transparent" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+              }`}
+              style={activeGroupId === g.id ? { backgroundColor: g.color, borderColor: g.color } : {}}
+            >
+              {g.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+      <div data-tour="progress-stats" className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-3">
@@ -233,19 +319,26 @@ export function ProgressDashboard({
         />
       ) : (
         /* ── Employee list view ── */
-        <div className="space-y-3">
-          {users.length === 0 && (
+        <div data-tour="progress-table" className="space-y-3">
+          {visibleUsers.length === 0 && (
             <Card>
-              <CardContent className="py-12 text-center text-gray-400">No employees found.</CardContent>
+              <CardContent className="py-12 text-center text-gray-400">
+                {searchQuery || activeLessonId ? "No employees match the current filters." : "No employees found."}
+              </CardContent>
             </Card>
           )}
-          {users.map((u) => {
+          {visibleUsers.map((u) => {
             const done = lessons.filter((l) => progMap.get(`${u.id}:${l.id}`)?.completedAt).length;
             const completion = pct(done, totalLessons);
             const timeSpent = progress.filter((p) => p.userId === u.id).reduce((s, p) => s + p.timeSpentSeconds, 0);
             const lastSeen = progress
               .filter((p) => p.userId === u.id && p.lastSeenAt)
               .sort((a, b) => (b.lastSeenAt! > a.lastSeenAt! ? 1 : -1))[0]?.lastSeenAt;
+
+            // Lesson-specific status when course filter is active
+            const lessonRow = activeLessonId ? progMap.get(`${u.id}:${activeLessonId}`) : undefined;
+            const lessonDone = !!lessonRow?.completedAt;
+            const lessonInProgress = !lessonDone && (lessonRow?.timeSpentSeconds ?? 0) > 0;
 
             return (
               <Card
@@ -268,6 +361,14 @@ export function ProgressDashboard({
                           style={{ backgroundColor: u.position.color + "20", color: u.position.color }}>
                           {u.position.name}
                         </span>
+                      )}
+                      {/* Course-specific badge */}
+                      {activeLessonId && (
+                        lessonDone
+                          ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">Completed</span>
+                          : lessonInProgress
+                            ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700">In progress</span>
+                            : null
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1.5">
@@ -294,6 +395,7 @@ export function ProgressDashboard({
           })}
         </div>
       )}
+      <PageTour tourKey="wso_page_progress_v1" steps={PROGRESS_TOUR} />
     </div>
   );
 }

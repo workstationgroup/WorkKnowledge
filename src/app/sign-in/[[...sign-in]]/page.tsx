@@ -1,5 +1,6 @@
 import { signIn } from "@/auth";
 import { BookOpen } from "lucide-react";
+import { SignInButton } from "./sign-in-button";
 
 export default function SignInPage() {
   return (
@@ -24,19 +25,7 @@ export default function SignInPage() {
             await signIn("microsoft-entra-id", { redirectTo: "/" });
           }}
         >
-          <button
-            type="submit"
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors font-medium text-gray-700"
-          >
-            {/* Microsoft logo */}
-            <svg width="20" height="20" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="1" y="1" width="9" height="9" fill="#F25022" />
-              <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
-              <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
-              <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
-            </svg>
-            Sign in with Microsoft 365
-          </button>
+          <SignInButton />
         </form>
 
         <p className="text-xs text-gray-400 mt-5 text-center">

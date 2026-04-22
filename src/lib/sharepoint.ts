@@ -20,7 +20,7 @@ async function getSharePointConfig() {
   };
 }
 
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   const res = await fetch(
     `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/oauth2/v2.0/token`,
     {
@@ -90,6 +90,25 @@ async function getOrCreateFolder(
 
   const errText = await createRes.text().catch(() => String(createRes.status));
   throw new Error(`Cannot create SharePoint folder "${folderName}": ${errText}`);
+}
+
+/**
+ * Convert an AllItems.aspx viewer URL to a direct file URL.
+ * e.g. https://tenant.sharepoint.com/sites/HR/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2F...%2Fimage.jpg
+ *   → https://tenant.sharepoint.com/sites/HR/Shared%20Documents/Apps/.../image.jpg
+ */
+function toDirectSharePointUrl(webUrl: string): string {
+  try {
+    const u = new URL(webUrl);
+    const idParam = u.searchParams.get("id");
+    if (idParam) {
+      // idParam is the server-relative path to the file (already decoded by URLSearchParams)
+      return `${u.origin}${encodeURI(idParam)}`;
+    }
+  } catch {
+    // ignore
+  }
+  return webUrl; // already a direct URL
 }
 
 /**
@@ -191,22 +210,10 @@ export async function uploadToSharePoint(
   const item = await uploadRes.json();
 
   // Step 6: create a shareable link so employees can open/download the file
-  const shareRes = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${item.id}/createLink`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ type: "view", scope: "organization" }),
-    }
-  );
-
-  const shareData = shareRes.ok ? await shareRes.json() : null;
-  const shareUrl = shareData?.link?.webUrl ?? item.webUrl;
-
-  return { url: shareUrl, webUrl: item.webUrl, itemId: item.id as string, driveId };
+  // item.webUrl from Graph API is the AllItems.aspx viewer URL, not a direct file URL.
+  // Extract the server-relative file path from the "id" query parameter and build the direct URL.
+  const directUrl = toDirectSharePointUrl(item.webUrl as string);
+  return { url: directUrl, webUrl: directUrl, itemId: item.id as string, driveId };
 }
 
 /**
