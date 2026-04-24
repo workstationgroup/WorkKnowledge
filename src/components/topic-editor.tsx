@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, Lock, Unlock, Save, X, Image as ImageIcon, Film, FileText, Table, PlayCircle } from "lucide-react";
+import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, Lock, Unlock, Save, X, Image as ImageIcon, Film, FileText, Table, PlayCircle, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RichEditor } from "@/components/rich-editor";
@@ -10,7 +10,7 @@ import { parseYouTubeId, youTubeEmbedUrl } from "@/lib/youtube";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type BlockType = "TEXT" | "IMAGE" | "VIDEO" | "PDF" | "PPT" | "EXCEL" | "YOUTUBE";
+type BlockType = "TEXT" | "IMAGE" | "VIDEO" | "PDF" | "PPT" | "EXCEL" | "YOUTUBE" | "LINK";
 
 interface Block {
   id?: string;
@@ -42,6 +42,7 @@ const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
   PPT: "PowerPoint",
   EXCEL: "Excel",
   YOUTUBE: "YouTube",
+  LINK: "Link",
 };
 
 function YouTubeBlockEditor({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
@@ -100,6 +101,25 @@ function YouTubeBlockEditor({ block, onChange }: { block: Block; onChange: (b: B
   );
 }
 
+function LinkBlockEditor({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
+  return (
+    <div className="space-y-2">
+      <Input
+        placeholder="https://example.com"
+        value={block.content}
+        onChange={(e) => onChange({ ...block, content: e.target.value })}
+        className="text-sm"
+      />
+      <Input
+        placeholder="Link label (shown to learners — optional)"
+        value={block.caption ?? ""}
+        onChange={(e) => onChange({ ...block, caption: e.target.value })}
+        className="text-xs h-7"
+      />
+    </div>
+  );
+}
+
 /** Convert AllItems.aspx viewer URL → direct file URL using the "id" query param. */
 function toDirectUrl(url: string): string {
   try {
@@ -127,7 +147,9 @@ function BlockEditor({
         <div className="flex items-center gap-2">
           {block.type === "YOUTUBE"
             ? <PlayCircle className="w-4 h-4 text-red-500" />
-            : fileIcon(block.type)}
+            : block.type === "LINK"
+              ? <LinkIcon className="w-4 h-4 text-indigo-500" />
+              : fileIcon(block.type)}
           <span className="text-xs font-medium text-gray-600">{BLOCK_TYPE_LABELS[block.type]}</span>
         </div>
         <button type="button" onClick={onDelete} className="text-gray-300 hover:text-red-400 transition-colors">
@@ -139,6 +161,8 @@ function BlockEditor({
         <RichEditor value={block.content} onChange={(html) => onChange({ ...block, content: html })} placeholder="Write content..." lessonId={lessonId} />
       ) : block.type === "YOUTUBE" ? (
         <YouTubeBlockEditor block={block} onChange={onChange} />
+      ) : block.type === "LINK" ? (
+        <LinkBlockEditor block={block} onChange={onChange} />
       ) : block.content ? (
         block.type === "IMAGE" ? (
           <div className="space-y-1.5">
@@ -183,7 +207,7 @@ function BlockEditor({
         />
       )}
 
-      {block.type !== "TEXT" && block.type !== "YOUTUBE" && (
+      {block.type !== "TEXT" && block.type !== "YOUTUBE" && block.type !== "LINK" && (
         <Input
           placeholder="Caption (optional)"
           value={block.caption ?? ""}
@@ -326,6 +350,7 @@ function TopicItem({
               ["IMAGE", <ImageIcon className="w-3 h-3" />, "Image"],
               ["VIDEO", <Film className="w-3 h-3" />, "Video"],
               ["YOUTUBE", <PlayCircle className="w-3 h-3 text-red-500" />, "YouTube"],
+              ["LINK", <LinkIcon className="w-3 h-3 text-indigo-500" />, "Link"],
               ["PDF", <FileText className="w-3 h-3 text-red-400" />, "PDF"],
               ["PPT", <FileText className="w-3 h-3 text-orange-400" />, "PPT"],
               ["EXCEL", <Table className="w-3 h-3 text-green-600" />, "Excel"],

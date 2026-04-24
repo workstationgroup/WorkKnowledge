@@ -77,6 +77,11 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastAttemptScore, setLastAttemptScore] = useState<number | null>(null);
+  // Failed attempts in the current learning cycle. A "cycle" resets when the
+  // learner re-learns (topic progress reset) — the reset endpoint also wipes
+  // QuizAttempt rows, so this count reflects the current cycle only.
+  const [failedInCycle, setFailedInCycle] = useState(0);
+  const [resetting, setResetting] = useState(false);
 
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -90,6 +95,13 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
       setQuiz(quizData || null);
       if (Array.isArray(attempts) && attempts.length > 0) {
         setLastAttemptScore(attempts[0].score);
+        // attempts are ordered desc; count leading failures up to the most recent pass
+        let failed = 0;
+        for (const a of attempts) {
+          if (a.passed) break;
+          failed++;
+        }
+        setFailedInCycle(failed);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -130,6 +142,7 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
       const data = await res.json();
       setResult(data);
       setLastAttemptScore(data.score);
+      setFailedInCycle((prev) => (data.passed ? 0 : prev + 1));
       onPassChange?.(data.passed);
     } catch {
       alert("Could not submit quiz. Please try again.");
@@ -144,11 +157,26 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
     onPassChange?.(false);
   };
 
+  const resetAndRelearn = async () => {
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/lessons/${lessonId}/reset-progress`, { method: "POST" });
+      if (!res.ok) throw new Error("Reset failed");
+      // Full reload so topic progress, quiz state, and lesson completion all reflect the reset
+      window.location.reload();
+    } catch {
+      alert("Could not reset progress. Please try again.");
+      setResetting(false);
+    }
+  };
+
   if (loading) return null;
   if (!quiz || quiz.questions.length === 0) return null;
 
   // ── Results screen ──────────────────────────────────────────────────────────
   if (result) {
+    // After 2 failed attempts in this cycle, force the learner to redo the lesson.
+    const forceRelearn = !result.passed && failedInCycle >= 2;
     return (
       <div className="border-2 rounded-2xl overflow-hidden">
         <div className={cn("px-6 py-6 text-center", result.passed ? "bg-green-50" : "bg-red-50")}>
@@ -161,7 +189,9 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
           <p className={cn("text-sm font-medium", result.passed ? "text-green-700" : "text-red-600")}>
             {result.passed
               ? "Congratulations! You passed."
-              : `Not passed — you need ${result.passScore}% to pass.`}
+              : forceRelearn
+                ? "Two failed attempts — you must re-learn this lesson before retrying."
+                : `Not passed — you need ${result.passScore}% to pass.`}
           </p>
           <p className="text-xs text-gray-500 mt-1">
             {result.correct} / {result.total} correct · Pass score: {result.passScore}%
@@ -240,14 +270,23 @@ export function QuizViewer({ lessonId, onRelearn, onPassChange }: QuizViewerProp
         </div>
 
         <div className="px-6 py-4 bg-gray-50 border-t flex gap-3 justify-end">
-          {!result.passed && (
-            <Button variant="outline" onClick={onRelearn}>
-              <RotateCcw className="w-4 h-4 mr-1.5" /> Re-learn lesson
+          {forceRelearn ? (
+            <Button onClick={resetAndRelearn} disabled={resetting}>
+              <RotateCcw className="w-4 h-4 mr-1.5" />
+              {resetting ? "Resetting..." : "Restart lesson"}
             </Button>
+          ) : (
+            <>
+              {!result.passed && (
+                <Button variant="outline" onClick={onRelearn}>
+                  <RotateCcw className="w-4 h-4 mr-1.5" /> Re-learn lesson
+                </Button>
+              )}
+              <Button variant="outline" onClick={retry}>
+                <RotateCcw className="w-4 h-4 mr-1.5" /> Try again
+              </Button>
+            </>
           )}
-          <Button variant="outline" onClick={retry}>
-            <RotateCcw className="w-4 h-4 mr-1.5" /> Try again
-          </Button>
         </div>
       </div>
     );

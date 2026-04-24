@@ -92,7 +92,23 @@ export function RichEditor({ value, onChange, placeholder, lessonId }: RichEdito
 
   const setLink = () => {
     const url = window.prompt("URL");
-    if (url) editor.chain().focus().setLink({ href: url }).run();
+    if (!url) return;
+    const href = url.trim();
+    if (!href) return;
+    if (editor.state.selection.empty) {
+      // No text selected — insert the URL itself as linked text so something is visible
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "text",
+          text: href,
+          marks: [{ type: "link", attrs: { href } }],
+        })
+        .run();
+    } else {
+      editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+    }
   };
 
   const embedYouTube = () => {
