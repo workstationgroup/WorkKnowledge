@@ -107,6 +107,8 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   }));
 
   const hasQuiz = !!lesson.quiz;
+  const allTopicsCompleteInitial =
+    topics.length > 0 && topics.every((t) => topicProgressMap[t.id]);
 
   // Merge related lessons from both directions, filter to published (or all for admin)
   const [relatedFrom, relatedTo] = relatedRaw;
@@ -198,6 +200,8 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
           lessonId={lesson.id}
           hasQuiz={hasQuiz}
           alreadyCompleted={!!progress?.completedAt}
+          hasTopics={topics.length > 0}
+          allTopicsCompleteInitial={allTopicsCompleteInitial}
         />
       </div>
       {relatedLessons.length > 0 && (

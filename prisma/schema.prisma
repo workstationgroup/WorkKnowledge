@@ -204,6 +204,7 @@ enum BlockType {
   PPT
   EXCEL
   YOUTUBE
+  LINK
 }
 
 model LessonPermission {

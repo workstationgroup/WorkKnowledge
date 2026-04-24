@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, Circle, Lock, ChevronDown, ChevronUp, Download, FileText, Film, Image as ImageIcon, Table } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, Circle, Lock, ChevronDown, ChevronUp, Download, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBytes, fileIcon } from "@/components/file-uploader";
 import { parseYouTubeId, youTubeEmbedUrl } from "@/lib/youtube";
 import { toast } from "sonner";
 
-type BlockType = "TEXT" | "IMAGE" | "VIDEO" | "PDF" | "PPT" | "EXCEL" | "YOUTUBE";
+type BlockType = "TEXT" | "IMAGE" | "VIDEO" | "PDF" | "PPT" | "EXCEL" | "YOUTUBE" | "LINK";
 
 interface Block {
   id: string;
@@ -42,7 +42,74 @@ interface LessonTopicsViewerProps {
   userId: string;
 }
 
-function BlockRenderer({ block }: { block: Block }) {
+function isVideoBlock(b: Block): boolean {
+  return b.type === "VIDEO" || b.type === "YOUTUBE";
+}
+
+function YouTubeTrackedEmbed({
+  videoId,
+  caption,
+  onEnded,
+}: {
+  videoId: string;
+  caption?: string | null;
+  onEnded: () => void;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const endedRef = useRef(false);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const messageHandler = (e: MessageEvent) => {
+      if (e.source !== iframe.contentWindow) return;
+      if (typeof e.data !== "string") return;
+      try {
+        const data = JSON.parse(e.data);
+        if (data.event === "onStateChange" && data.info === 0 && !endedRef.current) {
+          endedRef.current = true;
+          onEnded();
+        }
+      } catch {
+        // ignore non-JSON postMessages (YouTube sends those too)
+      }
+    };
+    window.addEventListener("message", messageHandler);
+
+    const startListening = () => {
+      iframe.contentWindow?.postMessage(JSON.stringify({ event: "listening" }), "*");
+    };
+    iframe.addEventListener("load", startListening);
+    // In case the iframe is already loaded by the time we attach:
+    startListening();
+
+    return () => {
+      window.removeEventListener("message", messageHandler);
+      iframe.removeEventListener("load", startListening);
+    };
+  }, [onEnded]);
+
+  const src = `${youTubeEmbedUrl(videoId)}&enablejsapi=1`;
+
+  return (
+    <figure>
+      <div className="aspect-video w-full rounded-lg overflow-hidden border border-gray-200 bg-black">
+        <iframe
+          ref={iframeRef}
+          src={src}
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={caption ?? "YouTube video"}
+        />
+      </div>
+      {caption && <figcaption className="text-xs text-gray-400 mt-1.5">{caption}</figcaption>}
+    </figure>
+  );
+}
+
+function BlockRenderer({ block, onVideoEnded }: { block: Block; onVideoEnded?: (blockId: string) => void }) {
   switch (block.type) {
     case "TEXT":
       return (
@@ -65,7 +132,12 @@ function BlockRenderer({ block }: { block: Block }) {
     case "VIDEO":
       return (
         <figure>
-          <video controls src={block.content} className="rounded-lg max-w-full w-full border border-gray-100">
+          <video
+            controls
+            src={block.content}
+            onEnded={() => onVideoEnded?.(block.id)}
+            className="rounded-lg max-w-full w-full border border-gray-100"
+          >
             Your browser does not support video.
           </video>
           {block.caption && <figcaption className="text-xs text-gray-400 mt-1.5">{block.caption}</figcaption>}
@@ -101,18 +173,28 @@ function BlockRenderer({ block }: { block: Block }) {
       const videoId = parseYouTubeId(block.content);
       if (!videoId) return null;
       return (
-        <figure>
-          <div className="aspect-video w-full rounded-lg overflow-hidden border border-gray-200 bg-black">
-            <iframe
-              src={youTubeEmbedUrl(videoId)}
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={block.caption ?? "YouTube video"}
-            />
-          </div>
-          {block.caption && <figcaption className="text-xs text-gray-400 mt-1.5">{block.caption}</figcaption>}
-        </figure>
+        <YouTubeTrackedEmbed
+          videoId={videoId}
+          caption={block.caption}
+          onEnded={() => onVideoEnded?.(block.id)}
+        />
+      );
+    }
+    case "LINK": {
+      const url = block.content;
+      if (!url) return null;
+      const label = block.caption?.trim() || url;
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors group"
+        >
+          <ExternalLink className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span className="flex-1 text-sm font-medium text-indigo-600 truncate group-hover:underline">{label}</span>
+          <span className="text-xs text-gray-400 truncate max-w-[40%] hidden sm:inline">{url}</span>
+        </a>
       );
     }
     default:
@@ -129,6 +211,37 @@ export function LessonTopicsViewer({ topics, attachments, userId }: LessonTopics
   );
   const [saving, setSaving] = useState<string | null>(null);
 
+  // Per-video watched state. Pre-fill videos in already-completed topics so users
+  // don't have to re-watch when un-marking + re-marking.
+  const [watched, setWatched] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const t of topics) {
+      if (t.completedAt) {
+        for (const b of t.blocks) if (isVideoBlock(b)) init[b.id] = true;
+      }
+    }
+    return init;
+  });
+
+  const markVideoEnded = (blockId: string) => {
+    setWatched((prev) => (prev[blockId] ? prev : { ...prev, [blockId]: true }));
+  };
+
+  // Emit topic-completion updates so the LessonEndSection can gate the quiz
+  const emitCompletionUpdate = (nextCompleted: Record<string, boolean>) => {
+    const allDone = topics.length > 0 && topics.every((t) => nextCompleted[t.id]);
+    window.dispatchEvent(
+      new CustomEvent("wso:topics-progress", {
+        detail: { allComplete: allDone, total: topics.length },
+      })
+    );
+  };
+
+  useEffect(() => {
+    emitCompletionUpdate(completed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // A topic is locked if any earlier mustComplete topic is not yet done
   const isLocked = (topicIndex: number): boolean => {
     for (let i = 0; i < topicIndex; i++) {
@@ -137,16 +250,28 @@ export function LessonTopicsViewer({ topics, attachments, userId }: LessonTopics
     return false;
   };
 
-  const toggleComplete = async (topicId: string, newValue: boolean) => {
-    setSaving(topicId);
+  const unwatchedVideosIn = (topic: Topic): Block[] =>
+    topic.blocks.filter((b) => isVideoBlock(b) && !watched[b.id]);
+
+  const toggleComplete = async (topic: Topic, newValue: boolean) => {
+    if (newValue) {
+      const unwatched = unwatchedVideosIn(topic);
+      if (unwatched.length > 0) {
+        toast.error("Watch all videos in this topic to the end before marking it complete");
+        return;
+      }
+    }
+    setSaving(topic.id);
     try {
-      const res = await fetch(`/api/topics/${topicId}/progress`, {
+      const res = await fetch(`/api/topics/${topic.id}/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: newValue }),
       });
       if (!res.ok) throw new Error("Failed");
-      setCompleted((prev) => ({ ...prev, [topicId]: newValue }));
+      const next = { ...completed, [topic.id]: newValue };
+      setCompleted(next);
+      emitCompletionUpdate(next);
       if (newValue) toast.success("Topic marked as complete");
     } catch {
       toast.error("Could not save progress");
@@ -166,6 +291,8 @@ export function LessonTopicsViewer({ topics, attachments, userId }: LessonTopics
             const locked = isLocked(i);
             const done = completed[topic.id];
             const open = expanded[topic.id] && !locked;
+            const unwatched = unwatchedVideosIn(topic);
+            const videoBlocker = !done && unwatched.length > 0;
 
             return (
               <div
@@ -207,21 +334,28 @@ export function LessonTopicsViewer({ topics, attachments, userId }: LessonTopics
                 {open && (
                   <div className="border-t border-gray-100 px-4 py-4 space-y-5 bg-white">
                     {topic.blocks.map((block) => (
-                      <BlockRenderer key={block.id} block={block} />
+                      <BlockRenderer key={block.id} block={block} onVideoEnded={markVideoEnded} />
                     ))}
                     {topic.blocks.length === 0 && (
                       <p className="text-sm text-gray-400">No content in this topic yet.</p>
                     )}
+                    {videoBlocker && (
+                      <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                        Watch the {unwatched.length === 1 ? "video" : `${unwatched.length} videos`} to the end to unlock &ldquo;Mark as complete&rdquo;.
+                      </p>
+                    )}
                     <div className="flex justify-end pt-2 border-t border-gray-100">
                       <button
                         type="button"
-                        disabled={saving === topic.id}
-                        onClick={() => toggleComplete(topic.id, !done)}
+                        disabled={saving === topic.id || videoBlocker}
+                        onClick={() => toggleComplete(topic, !done)}
                         className={cn(
                           "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors",
-                          done
-                            ? "border-green-200 text-green-600 bg-green-50 hover:bg-green-100"
-                            : "border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                          videoBlocker
+                            ? "border-gray-200 text-gray-400 bg-gray-50 cursor-not-allowed"
+                            : done
+                              ? "border-green-200 text-green-600 bg-green-50 hover:bg-green-100"
+                              : "border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                         )}
                       >
                         {done ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
